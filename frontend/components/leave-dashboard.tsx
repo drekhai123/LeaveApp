@@ -1,92 +1,223 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { getEmployees, getHealth, getLeaveRequests } from "@/lib/leave-api";
-import type { Employee, HealthStatus, LeaveRequest } from "@/types/leave-app";
-import { AdminWorkspace } from "./admin-workspace";
-import { BackendHealth } from "./backend-health";
-import { EmployeeSelfService } from "./employee-self-service";
-import { InlineAlert } from "./inline-alert";
-import { SummaryMetrics } from "./summary-metrics";
-import { WorkspaceSwitcher, type Workspace } from "./workspace-switcher";
+import { useMemo, useState } from "react";
+import {
+  findRoleName,
+  mockLeaveRequests,
+  mockNotifications,
+  mockStaffs,
+} from "@/lib/mock-leave-management-data";
+import type {
+  LeaveRequestRecord,
+  ManagerNotificationRecord,
+  StaffRecord,
+} from "@/types/leave-app";
+import { AdminMockWorkspace } from "./admin-mock-workspace";
+import { HeadWorkspace } from "./head-workspace";
+import { LoginScreen } from "./login-screen";
+import { ManagerWorkspace } from "./manager-workspace";
+import { MockMetrics } from "./mock-metrics";
+import { StaffWorkspace } from "./staff-workspace";
 
 export function LeaveDashboard() {
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [health, setHealth] = useState<HealthStatus>();
-  const [requests, setRequests] = useState<LeaveRequest[]>([]);
-  const [error, setError] = useState<string>();
-  const [isLoading, setIsLoading] = useState(true);
-  const [workspace, setWorkspace] = useState<Workspace>("employee");
+  const [notifications, setNotifications] =
+    useState<ManagerNotificationRecord[]>(mockNotifications);
+  const [requests, setRequests] = useState<LeaveRequestRecord[]>(mockLeaveRequests);
+  const [staffs, setStaffs] = useState<StaffRecord[]>(mockStaffs);
+  const [currentUser, setCurrentUser] = useState<StaffRecord>();
 
-  const refresh = useCallback(async () => {
-    setError(undefined);
-    setIsLoading(true);
-    try {
-      const [healthStatus, employeeList, leaveRequests] = await Promise.all([
-        getHealth(),
-        getEmployees(),
-        getLeaveRequests(),
-      ]);
-      setHealth(healthStatus);
-      setEmployees(employeeList);
-      setRequests(sortRequests(leaveRequests));
-    } catch (loadError) {
-      setHealth(undefined);
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Could not load LeaveApp data.",
-      );
-    } finally {
-      setIsLoading(false);
+  const currentRole = currentUser ? findRoleName(currentUser) : undefined;
+  const manager = useMemo(() => findByRole(staffs, "MANAGER"), [staffs]);
+
+  if (!currentUser || !currentRole) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
+
+  function handleSubmit(staffId: number, leaveDate: string, reason: string) {
+    if (hasExistingRequestForDate(requests, staffId, leaveDate)) {
+      return;
     }
-  }, []);
 
-  useEffect(() => {
-    void Promise.resolve().then(refresh);
-  }, [refresh]);
+    const now = new Date().toISOString();
+    const nextId = Math.max(...requests.map((request) => request.id)) + 1;
+
+    setRequests((current) => [
+      {
+        id: nextId,
+        createdAt: now,
+        leaveDate,
+        reason,
+        staffId,
+        status: "PENDING",
+        updatedAt: now,
+      },
+      ...current,
+    ]);
+  }
+
+  function handleApprove(requestId: number, headId: number) {
+    const request = findPendingRequest(requests, requestId);
+    if (!request) {
+      return;
+    }
+
+    resolveRequest(requestId, headId, "APPROVED");
+    decreaseLeaveCredit(requestId);
+    createManagerNotification(requestId, "Đơn nghỉ phép đã được duyệt", "SENT");
+  }
+
+  function handleReject(requestId: number, headId: number, rejectReason: string) {
+    if (!rejectReason.trim()) {
+      return;
+    }
+
+    const request = findPendingRequest(requests, requestId);
+    if (!request) {
+      return;
+    }
+
+    resolveRequest(requestId, headId, "REJECTED", rejectReason.trim());
+    createManagerNotification(requestId, "Đơn nghỉ phép bị từ chối", "FAILED");
+  }
 
   return (
     <div className="grid gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <BackendHealth health={health} isLoading={isLoading} />
+      <div className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-slate-200 bg-white p-4">
+        <div>
+          <p className="text-sm font-medium text-slate-500">
+            Dữ liệu mô phỏng UI - schema MySQL
+          </p>
+          <h2 className="mt-1 text-xl font-semibold text-slate-950">
+            Dashboard {currentRole}
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+            Đăng nhập: {currentUser.fullName} ({currentUser.email}). Hệ thống
+            điều hướng theo vai trò sau khi đăng nhập.
+          </p>
+        </div>
         <button
-          className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:text-slate-400"
-          disabled={isLoading}
-          onClick={() => void refresh()}
+          className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          onClick={handleLogout}
           type="button"
         >
-          {isLoading ? "Refreshing..." : "Refresh"}
+          Đăng xuất
         </button>
       </div>
 
-      {error ? (
-        <InlineAlert
-          message={`${error}. Start the backend, then click Refresh.`}
-          tone="error"
-        />
+      {currentRole !== "STAFF" ? (
+        <MockMetrics requests={requests} staffs={staffs} />
       ) : null}
 
-      <SummaryMetrics employees={employees} requests={requests} />
-
-      <WorkspaceSwitcher activeWorkspace={workspace} onChange={setWorkspace} />
-
-      {workspace === "employee" ? (
-        <EmployeeSelfService
-          employees={employees}
-          onChanged={refresh}
+      {currentRole === "STAFF" ? (
+        <StaffWorkspace onSubmit={handleSubmit} requests={requests} staff={currentUser} />
+      ) : null}
+      {currentRole === "HEAD" ? (
+        <HeadWorkspace
+          head={currentUser}
+          onApprove={handleApprove}
+          onReject={handleReject}
           requests={requests}
         />
-      ) : (
-        <AdminWorkspace employees={employees} onChanged={refresh} requests={requests} />
-      )}
+      ) : null}
+      {currentRole === "MANAGER" ? (
+        <ManagerWorkspace
+          manager={currentUser}
+          notifications={notifications}
+          requests={requests}
+        />
+      ) : null}
+      {currentRole === "ADMIN" ? (
+        <AdminMockWorkspace requests={requests} staffs={staffs} />
+      ) : null}
     </div>
+  );
+
+  function handleLogin(staff: StaffRecord) {
+    setStaffs((current) =>
+      current.some((item) => item.id === staff.id) ? current : [staff, ...current],
+    );
+    setCurrentUser(staff);
+  }
+
+  function handleLogout() {
+    localStorage.removeItem("leave_app_access_token");
+    setCurrentUser(undefined);
+  }
+
+  function resolveRequest(
+    requestId: number,
+    headId: number,
+    status: LeaveRequestRecord["status"],
+    rejectReason?: string,
+  ) {
+    const now = new Date().toISOString();
+
+    setRequests((current) =>
+      current.map((request) =>
+        request.id === requestId
+          ? {
+              ...request,
+              rejectReason,
+              resolvedAt: now,
+              resolvedBy: headId,
+              status,
+              updatedAt: now,
+            }
+          : request,
+      ),
+    );
+  }
+
+  function decreaseLeaveCredit(requestId: number) {
+    const request = requests.find((item) => item.id === requestId);
+    if (!request) {
+      return;
+    }
+
+    setStaffs((current) =>
+      current.map((item) =>
+        item.id === request.staffId
+          ? { ...item, leaveCredit: Math.max(0, item.leaveCredit - 1) }
+          : item,
+      ),
+    );
+  }
+
+  function createManagerNotification(
+    requestId: number,
+    subject: string,
+    emailStatus: ManagerNotificationRecord["emailStatus"],
+  ) {
+    setNotifications((current) => [
+      {
+        id: Math.max(...current.map((item) => item.id)) + 1,
+        createdAt: new Date().toISOString(),
+        emailStatus,
+        leaveRequestId: requestId,
+        managerId: manager.id,
+        subject,
+      },
+      ...current,
+    ]);
+  }
+}
+
+function findByRole(staffs: StaffRecord[], roleName: ReturnType<typeof findRoleName>) {
+  return staffs.find((staff) => findRoleName(staff) === roleName) ?? staffs[0];
+}
+
+function hasExistingRequestForDate(
+  requests: LeaveRequestRecord[],
+  staffId: number,
+  leaveDate: string,
+) {
+  return requests.some(
+    (request) => request.staffId === staffId && request.leaveDate === leaveDate,
   );
 }
 
-function sortRequests(requests: LeaveRequest[]): LeaveRequest[] {
-  return [...requests].sort(
-    (left, right) =>
-      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+function findPendingRequest(requests: LeaveRequestRecord[], requestId: number) {
+  return requests.find(
+    (request) => request.id === requestId && request.status === "PENDING",
   );
 }

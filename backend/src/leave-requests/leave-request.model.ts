@@ -1,22 +1,20 @@
 export const LEAVE_REQUEST_STATUSES = [
-  'pending',
-  'approved',
-  'rejected',
+  'PENDING',
+  'APPROVED',
+  'REJECTED',
 ] as const;
 export type LeaveRequestStatus = (typeof LEAVE_REQUEST_STATUSES)[number];
 
 export interface LeaveRequest {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  employeeEmail: string;
-  startDate: string;
-  endDate: string;
-  totalDays: number;
+  id: number;
+  rejectReason?: string;
   reason: string;
+  resolvedAt?: string;
+  resolvedBy?: number;
+  staffEmail: string;
+  staffId: number;
+  staffName: string;
+  leaveDate: string;
   status: LeaveRequestStatus;
-  managerNote?: string;
-  processedBy?: string;
-  processedAt?: string;
   createdAt: string;
 }

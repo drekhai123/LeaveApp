@@ -1,59 +1,48 @@
 # LeaveApp Frontend
 
-Next.js frontend for the LeaveApp leave request workflow.
+Frontend Next.js cho quy trình xin nghỉ phép LeaveApp.
 
-## What It Does
+## Chức năng hiện tại
 
-- Shows backend health.
-- Creates employees.
-- Submits leave requests.
-- Shows pending, approved, and rejected request counts.
-- Lets manager/HR users approve or reject pending requests.
-- Calls backend through a same-origin Next API proxy to avoid browser CORS issues.
+- Đăng nhập bằng API thật của backend: `POST /auth/login`.
+- Điều hướng dashboard theo role thật backend trả về: `STAFF`, `HEAD`, `MANAGER`, hoặc `ADMIN`.
+- Token được lưu ở `localStorage` với key `leave_app_access_token` để các API thật tiếp theo có thể dùng lại.
+- Các màn dashboard sau đăng nhập vẫn đang dùng dữ liệu mock/local state. Lần này chỉ nối phần đăng nhập.
 
-## Environment
+## Cấu hình API
 
-Create `.env.local` when the backend is not on the default URL:
+Next route `/api/auth/login` proxy sang backend để tránh CORS khi chạy local.
 
-```powershell
-LEAVE_APP_API_BASE_URL=http://localhost:3000
+Mặc định backend chạy ở:
+
+```text
+http://localhost:3000
 ```
 
-If the variable is not set, the frontend uses `http://localhost:3000`.
+Nếu backend chạy port khác, tạo `.env.local` trong `frontend`:
 
-## Run Locally
-
-Start backend:
-
-```powershell
-cd D:\LeaveApp\backend
-pnpm.cmd run start:dev
+```text
+BACKEND_URL=http://localhost:3000
 ```
 
-Start frontend on another port:
+## Chạy local
+
+Chạy backend trước, sau đó chạy frontend:
 
 ```powershell
 cd D:\LeaveApp\frontend
 pnpm.cmd exec next dev -p 3001
 ```
 
-Open:
+Mở:
 
 ```text
 http://localhost:3001
 ```
 
-## Validate
+## Kiểm tra
 
 ```powershell
 pnpm.cmd run lint
 pnpm.cmd run build
 ```
-
-Manual smoke checklist is in [docs/frontend-validation-checklist.md](docs/frontend-validation-checklist.md).
-
-## MVP Limits
-
-- No real authentication yet. The UI uses an approver selector.
-- Backend storage is in-memory, so data resets when backend restarts.
-- Backend mail is currently adapter/log based unless a provider is connected.

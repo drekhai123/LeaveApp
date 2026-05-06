@@ -2,6 +2,8 @@ import { Migration } from '@mikro-orm/migrations';
 
 export class Migration20260506120530 extends Migration {
   override async up(): Promise<void> {
+    await Promise.resolve();
+
     this.addSql(`
       CREATE TABLE \`roles\` (
         \`id\` INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -9,6 +11,14 @@ export class Migration20260506120530 extends Migration {
         PRIMARY KEY (\`id\`),
         UNIQUE KEY \`roles_name_unique\` (\`name\`)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    this.addSql(`
+      INSERT INTO \`roles\` (\`name\`) VALUES
+        ('STAFF'),
+        ('MANAGER'),
+        ('HEAD'),
+        ('ADMIN');
     `);
 
     this.addSql(`
@@ -53,6 +63,8 @@ export class Migration20260506120530 extends Migration {
   }
 
   override async down(): Promise<void> {
+    await Promise.resolve();
+
     this.addSql(`DROP TABLE IF EXISTS \`leave_requests\`;`);
     this.addSql(`DROP TABLE IF EXISTS \`staffs\`;`);
     this.addSql(`DROP TABLE IF EXISTS \`roles\`;`);

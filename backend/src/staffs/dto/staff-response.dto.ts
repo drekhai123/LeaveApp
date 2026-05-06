@@ -19,4 +19,3 @@ export class StaffResponseDto {
   @ApiProperty({ example: '2026-05-06T05:00:00.000Z' })
   createdAt!: string;
 }
-

@@ -1,59 +1,47 @@
-export const EMPLOYEE_ROLES = ["employee", "manager", "hr"] as const;
-export type EmployeeRole = (typeof EMPLOYEE_ROLES)[number];
+export const STAFF_ROLE_NAMES = ["STAFF", "MANAGER", "HEAD", "ADMIN"] as const;
+export type StaffRoleName = (typeof STAFF_ROLE_NAMES)[number];
 
-export const LEAVE_REQUEST_STATUSES = [
-  "pending",
-  "approved",
-  "rejected",
-] as const;
-export type LeaveRequestStatus = (typeof LEAVE_REQUEST_STATUSES)[number];
+export const ERD_LEAVE_STATUSES = ["PENDING", "APPROVED", "REJECTED"] as const;
+export type ErdLeaveStatus = (typeof ERD_LEAVE_STATUSES)[number];
 
-export interface HealthStatus {
-  app: string;
-  status: string;
-  version: string;
+export const EMAIL_STATUSES = ["SENT", "FAILED"] as const;
+export type EmailStatus = (typeof EMAIL_STATUSES)[number];
+
+export interface RoleRecord {
+  id: number;
+  name: StaffRoleName;
 }
 
-export interface Employee {
-  id: string;
-  name: string;
+export interface StaffRecord {
+  id: number;
+  fullName: string;
   email: string;
-  role: EmployeeRole;
-  annualLeaveDays: number;
-  active: boolean;
-}
-
-export interface CreateEmployeePayload {
-  name: string;
-  email: string;
-  role?: EmployeeRole;
-  annualLeaveDays?: number;
-}
-
-export interface LeaveRequest {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  employeeEmail: string;
-  startDate: string;
-  endDate: string;
-  totalDays: number;
-  reason: string;
-  status: LeaveRequestStatus;
-  managerNote?: string;
-  processedBy?: string;
-  processedAt?: string;
+  passwordHash?: string;
+  roleId: number;
+  leaveCredit: number;
+  createdBy?: number;
   createdAt: string;
+  updatedAt: string;
 }
 
-export interface CreateLeaveRequestPayload {
-  employeeId: string;
-  startDate: string;
-  endDate: string;
+export interface LeaveRequestRecord {
+  id: number;
+  staffId: number;
+  leaveDate: string;
   reason: string;
+  status: ErdLeaveStatus;
+  resolvedBy?: number;
+  rejectReason?: string;
+  resolvedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface ProcessLeaveRequestPayload {
-  managerId: string;
-  note?: string;
+export interface ManagerNotificationRecord {
+  id: number;
+  managerId: number;
+  leaveRequestId: number;
+  subject: string;
+  emailStatus: EmailStatus;
+  createdAt: string;
 }

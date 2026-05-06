@@ -1,18 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsDateString, IsString } from 'class-validator';
+import { IsDateString, IsInt, IsString, Min } from 'class-validator';
 
 export class CreateLeaveRequestDto {
-  @ApiProperty({ example: 'employee-id' })
-  @IsString()
-  employeeId!: string;
+  @ApiProperty({ example: 1 })
+  @IsInt()
+  @Min(1)
+  staffId!: number;
 
   @ApiProperty({ example: '2026-05-04' })
   @IsDateString()
-  startDate!: string;
-
-  @ApiProperty({ example: '2026-05-08' })
-  @IsDateString()
-  endDate!: string;
+  leaveDate!: string;
 
   @ApiProperty({ example: 'Family trip' })
   @IsString()

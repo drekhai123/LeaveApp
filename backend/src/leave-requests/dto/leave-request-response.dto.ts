@@ -5,41 +5,35 @@ import {
 } from '../leave-request.model';
 
 export class LeaveRequestResponseDto {
-  @ApiProperty({ example: 'leave-request-id' })
-  id!: string;
+  @ApiProperty({ example: 1 })
+  id!: number;
 
-  @ApiProperty({ example: 'employee-id' })
-  employeeId!: string;
+  @ApiProperty({ example: 1 })
+  staffId!: number;
 
   @ApiProperty({ example: 'Nguyen Van A' })
-  employeeName!: string;
+  staffName!: string;
 
   @ApiProperty({ example: 'a@company.local' })
-  employeeEmail!: string;
+  staffEmail!: string;
 
   @ApiProperty({ example: '2026-05-04' })
-  startDate!: string;
-
-  @ApiProperty({ example: '2026-05-08' })
-  endDate!: string;
-
-  @ApiProperty({ example: 5 })
-  totalDays!: number;
+  leaveDate!: string;
 
   @ApiProperty({ example: 'Family trip' })
   reason!: string;
 
-  @ApiProperty({ enum: LEAVE_REQUEST_STATUSES, example: 'pending' })
+  @ApiProperty({ enum: LEAVE_REQUEST_STATUSES, example: 'PENDING' })
   status!: LeaveRequestStatus;
 
-  @ApiPropertyOptional({ example: 'Approved' })
-  managerNote?: string;
+  @ApiPropertyOptional({ example: 'Trùng lịch họp' })
+  rejectReason?: string;
 
-  @ApiPropertyOptional({ example: 'manager-id' })
-  processedBy?: string;
+  @ApiPropertyOptional({ example: 4 })
+  resolvedBy?: number;
 
   @ApiPropertyOptional({ example: '2026-05-05T10:00:00.000Z' })
-  processedAt?: string;
+  resolvedAt?: string;
 
   @ApiProperty({ example: '2026-05-05T09:00:00.000Z' })
   createdAt!: string;

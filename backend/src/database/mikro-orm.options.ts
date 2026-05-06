@@ -11,10 +11,12 @@ export type DatabaseEnv = {
   DB_USER?: string;
   DB_PASSWORD?: string;
   DB_NAME?: string;
+  DB_SSL?: string;
 };
 
 export function createMikroOrmConfig(env: DatabaseEnv) {
   const port = Number(env.DB_PORT ?? 3306);
+  const sslEnabled = env.DB_SSL === 'true';
 
   return defineConfig({
     driver: MySqlDriver,
@@ -30,6 +32,12 @@ export function createMikroOrmConfig(env: DatabaseEnv) {
     driverOptions: {
       connection: {
         charset: 'utf8mb4',
+        connectTimeout: 10000,
+        ssl: sslEnabled
+          ? {
+              rejectUnauthorized: false,
+            }
+          : undefined,
       },
     },
     migrations: {
