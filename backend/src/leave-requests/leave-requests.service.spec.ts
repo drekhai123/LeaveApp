@@ -20,14 +20,16 @@ describe('LeaveRequestsService', () => {
 
     const entityManager = {
       flush: jest.fn().mockResolvedValue(undefined),
-      persistAndFlush: jest
-        .fn()
-        .mockImplementation((request: DbLeaveRequest) => {
+      persistAndFlush: jest.fn().mockImplementation((payload: DbLeaveRequest | DbLeaveRequest[]) => {
+        const requests = Array.isArray(payload) ? payload : [payload];
+        for (const request of requests) {
           request.id = nextId;
           nextId += 1;
           dbRequests.push(request);
-          return Promise.resolve();
-        }),
+        }
+
+        return Promise.resolve();
+      }),
     };
 
     const leaveRequestRepository = {
@@ -52,6 +54,10 @@ describe('LeaveRequestsService', () => {
             const request = dbRequests.find((item) => {
               if (filter.id !== undefined) {
                 return item.id === filter.id;
+              }
+
+              if (filter.leaveDate === undefined || filter.staff === undefined) {
+                return false;
               }
 
               return (
@@ -93,27 +99,47 @@ describe('LeaveRequestsService', () => {
   });
 
   it('creates a pending leave request for one date', async () => {
-    const request = await leaveRequestsService.create({
-      leaveDate: '2026-05-04',
+    const created = await leaveRequestsService.create({
+      startDate: '2026-05-04',
+      endDate: '2026-05-04',
       reason: 'Family trip',
       staffId: 1,
     });
 
-    expect(request.status).toBe('PENDING');
-    expect(request.leaveDate).toBe('2026-05-04');
-    expect(request.staffId).toBe(1);
+    expect(created.totalDays).toBe(1);
+    expect(created.requests[0].status).toBe('pending');
+    expect(created.requests[0].leaveDate).toBe('2026-05-04');
+    expect(created.requests[0].staffId).toBe(1);
+  });
+
+  it('creates one request row per business day', async () => {
+    const created = await leaveRequestsService.create({
+      startDate: '2026-05-04',
+      endDate: '2026-05-06',
+      reason: 'Family trip',
+      staffId: 1,
+    });
+
+    expect(created.totalDays).toBe(3);
+    expect(created.requests.map((item) => item.leaveDate)).toEqual([
+      '2026-05-04',
+      '2026-05-05',
+      '2026-05-06',
+    ]);
   });
 
   it('prevents duplicate leave requests on the same date', async () => {
     await leaveRequestsService.create({
-      leaveDate: '2026-05-04',
+      startDate: '2026-05-04',
+      endDate: '2026-05-04',
       reason: 'Family trip',
       staffId: 1,
     });
 
     await expect(
       leaveRequestsService.create({
-        leaveDate: '2026-05-04',
+        startDate: '2026-05-04',
+        endDate: '2026-05-04',
         reason: 'Family trip',
         staffId: 1,
       }),
@@ -121,46 +147,69 @@ describe('LeaveRequestsService', () => {
   });
 
   it('allows heads to approve pending requests', async () => {
-    const request = await leaveRequestsService.create({
-      leaveDate: '2026-05-04',
+    const created = await leaveRequestsService.create({
+      startDate: '2026-05-04',
+      endDate: '2026-05-04',
       reason: 'Personal work',
       staffId: 1,
     });
 
-    const approved = await leaveRequestsService.approve(String(request.id), {
-      managerId: 2,
+    const approved = await leaveRequestsService.approve(created.requests[0].id, {
+      resolvedByStaffId: 2,
       note: 'Approved',
     });
 
-    expect(approved.status).toBe('APPROVED');
-    expect(approved.resolvedBy).toBe(2);
+    expect(approved.status).toBe('approved');
+    expect(approved.resolvedByStaffId).toBe(2);
   });
 
   it('allows heads to reject pending requests', async () => {
-    const request = await leaveRequestsService.create({
-      leaveDate: '2026-05-04',
+    const created = await leaveRequestsService.create({
+      startDate: '2026-05-04',
+      endDate: '2026-05-04',
       reason: 'Personal work',
       staffId: 1,
     });
 
-    const rejected = await leaveRequestsService.reject(String(request.id), {
-      managerId: 2,
+    const rejected = await leaveRequestsService.reject(created.requests[0].id, {
+      resolvedByStaffId: 2,
       note: 'Trung lich hop',
     });
 
-    expect(rejected.status).toBe('REJECTED');
+    expect(rejected.status).toBe('rejected');
     expect(rejected.rejectReason).toBe('Trung lich hop');
   });
 
   it('rejects processing from regular staff', async () => {
-    const request = await leaveRequestsService.create({
-      leaveDate: '2026-05-04',
+    const created = await leaveRequestsService.create({
+      startDate: '2026-05-04',
+      endDate: '2026-05-04',
       reason: 'Personal work',
       staffId: 1,
     });
 
     await expect(
-      leaveRequestsService.approve(String(request.id), { managerId: 1 }),
+      leaveRequestsService.approve(created.requests[0].id, { resolvedByStaffId: 1 }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects processing requests already handled', async () => {
+    const created = await leaveRequestsService.create({
+      startDate: '2026-05-04',
+      endDate: '2026-05-04',
+      reason: 'Personal work',
+      staffId: 1,
+    });
+
+    await leaveRequestsService.approve(created.requests[0].id, {
+      resolvedByStaffId: 2,
+    });
+
+    await expect(
+      leaveRequestsService.reject(created.requests[0].id, {
+        resolvedByStaffId: 2,
+        note: 'Late update',
+      }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

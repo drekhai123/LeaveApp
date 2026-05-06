@@ -11,7 +11,11 @@ import { MailService } from '../mail/mail.service';
 import { StaffsService } from '../staffs/staffs.service';
 import { CreateLeaveRequestDto } from './dto/create-leave-request.dto';
 import { ProcessLeaveRequestDto } from './dto/process-leave-request.dto';
-import { LeaveRequest, LeaveRequestStatus } from './leave-request.model';
+import {
+  CreateLeaveRequestResponse,
+  LeaveRequest,
+  LeaveRequestStatus,
+} from './leave-request.model';
 
 @Injectable()
 export class LeaveRequestsService {
@@ -22,37 +26,48 @@ export class LeaveRequestsService {
     private readonly mailService: MailService,
   ) {}
 
-  async create(dto: CreateLeaveRequestDto): Promise<LeaveRequest> {
+  async create(dto: CreateLeaveRequestDto): Promise<CreateLeaveRequestResponse> {
     const staff = await this.staffsService.findEntityById(dto.staffId);
 
     if (!dto.reason?.trim()) {
       throw new BadRequestException('Leave reason is required');
     }
-    if (!this.isValidDate(dto.leaveDate)) {
-      throw new BadRequestException('Leave date is invalid');
+    if (!this.isValidDate(dto.startDate) || !this.isValidDate(dto.endDate)) {
+      throw new BadRequestException('Start date or end date is invalid');
     }
-    await this.ensureNoDuplicateRequest(staff.id, dto.leaveDate);
 
-    const leaveRequest = this.leaveRequestRepository.create({
-      createdAt: new Date(),
-      leaveDate: dto.leaveDate,
-      reason: dto.reason.trim(),
-      staff,
-      status: LeaveStatus.PENDING,
-      updatedAt: new Date(),
-    });
+    const leaveDates = this.getBusinessDates(dto.startDate, dto.endDate);
+    if (leaveDates.length === 0) {
+      throw new BadRequestException('Leave range must include at least one business day');
+    }
 
-    await this.leaveRequestRepository
-      .getEntityManager()
-      .persistAndFlush(leaveRequest);
-    await this.notifyHeads(leaveRequest);
+    for (const leaveDate of leaveDates) {
+      await this.ensureNoDuplicateRequest(staff.id, leaveDate);
+    }
 
-    return this.toResponse(leaveRequest);
+    const leaveRequests = leaveDates.map((leaveDate) =>
+      this.leaveRequestRepository.create({
+        createdAt: new Date(),
+        leaveDate,
+        reason: dto.reason.trim(),
+        staff,
+        status: LeaveStatus.PENDING,
+        updatedAt: new Date(),
+      }),
+    );
+
+    await this.leaveRequestRepository.getEntityManager().persistAndFlush(leaveRequests);
+    await Promise.all(leaveRequests.map((request) => this.notifyHeads(request)));
+
+    return {
+      totalDays: leaveRequests.length,
+      requests: leaveRequests.map((request) => this.toResponse(request)),
+    };
   }
 
   async findAll(status?: LeaveRequestStatus): Promise<LeaveRequest[]> {
     const requests = await this.leaveRequestRepository.find(
-      status ? { status: status as LeaveStatus } : {},
+      status ? { status: this.toDbStatus(status) } : {},
       {
         orderBy: { createdAt: 'DESC' },
         populate: ['resolvedByStaff', 'staff'],
@@ -62,31 +77,31 @@ export class LeaveRequestsService {
     return requests.map((request) => this.toResponse(request));
   }
 
-  async findById(id: string): Promise<LeaveRequest> {
+  async findById(id: number): Promise<LeaveRequest> {
     return this.toResponse(await this.findEntityById(id));
   }
 
   async approve(
-    id: string,
+    id: number,
     dto: ProcessLeaveRequestDto,
   ): Promise<LeaveRequest> {
     return this.process(id, dto, LeaveStatus.APPROVED);
   }
 
-  async reject(id: string, dto: ProcessLeaveRequestDto): Promise<LeaveRequest> {
+  async reject(id: number, dto: ProcessLeaveRequestDto): Promise<LeaveRequest> {
     return this.process(id, dto, LeaveStatus.REJECTED);
   }
 
   private async process(
-    id: string,
+    id: number,
     dto: ProcessLeaveRequestDto,
     status: LeaveStatus,
   ): Promise<LeaveRequest> {
-    const manager = await this.staffsService.findEntityById(dto.managerId);
-    if (!['HEAD', 'MANAGER', 'ADMIN'].includes(manager.role.name)) {
-      throw new BadRequestException(
-        'Only HEAD, MANAGER, or ADMIN can process leave requests',
-      );
+    const resolverStaff = await this.staffsService.findEntityById(
+      dto.resolvedByStaffId,
+    );
+    if (resolverStaff.role.name !== 'HEAD') {
+      throw new BadRequestException('Only HEAD can process leave requests');
     }
 
     const leaveRequest = await this.findEntityById(id);
@@ -95,7 +110,7 @@ export class LeaveRequestsService {
     }
 
     leaveRequest.status = status;
-    leaveRequest.resolvedByStaff = manager;
+    leaveRequest.resolvedByStaff = resolverStaff;
     leaveRequest.resolvedAt = new Date();
     leaveRequest.rejectReason =
       status === LeaveStatus.REJECTED ? dto.note?.trim() : undefined;
@@ -110,9 +125,9 @@ export class LeaveRequestsService {
     return this.toResponse(leaveRequest);
   }
 
-  private async findEntityById(id: string): Promise<DbLeaveRequest> {
+  private async findEntityById(id: number): Promise<DbLeaveRequest> {
     const leaveRequest = await this.leaveRequestRepository.findOne(
-      { id: Number(id) },
+      { id },
       { populate: ['resolvedByStaff', 'staff'] },
     );
     if (!leaveRequest) {
@@ -155,6 +170,50 @@ export class LeaveRequestsService {
     return !Number.isNaN(date.getTime());
   }
 
+  private getBusinessDates(startDate: string, endDate: string): string[] {
+    const start = new Date(`${startDate}T00:00:00.000Z`);
+    const end = new Date(`${endDate}T00:00:00.000Z`);
+    if (start > end) {
+      throw new BadRequestException('startDate must be before or equal to endDate');
+    }
+
+    const leaveDates: string[] = [];
+    const current = new Date(start);
+    while (current <= end) {
+      const day = current.getUTCDay();
+      if (day !== 0 && day !== 6) {
+        leaveDates.push(current.toISOString().slice(0, 10));
+      }
+      current.setUTCDate(current.getUTCDate() + 1);
+    }
+
+    return leaveDates;
+  }
+
+  private toDbStatus(status: LeaveRequestStatus): LeaveStatus {
+    switch (status) {
+      case 'approved':
+        return LeaveStatus.APPROVED;
+      case 'rejected':
+        return LeaveStatus.REJECTED;
+      case 'pending':
+      default:
+        return LeaveStatus.PENDING;
+    }
+  }
+
+  private toApiStatus(status: LeaveStatus): LeaveRequestStatus {
+    switch (status) {
+      case LeaveStatus.APPROVED:
+        return 'approved';
+      case LeaveStatus.REJECTED:
+        return 'rejected';
+      case LeaveStatus.PENDING:
+      default:
+        return 'pending';
+    }
+  }
+
   private toResponse(leaveRequest: DbLeaveRequest): LeaveRequest {
     return {
       id: leaveRequest.id,
@@ -162,12 +221,26 @@ export class LeaveRequestsService {
       leaveDate: leaveRequest.leaveDate,
       reason: leaveRequest.reason ?? '',
       rejectReason: leaveRequest.rejectReason,
-      resolvedAt: leaveRequest.resolvedAt?.toISOString(),
-      resolvedBy: leaveRequest.resolvedByStaff?.id,
+      processedAt: leaveRequest.resolvedAt?.toISOString(),
+      resolvedByStaffId: leaveRequest.resolvedByStaff?.id,
       staffEmail: leaveRequest.staff.email,
       staffId: leaveRequest.staff.id,
       staffName: leaveRequest.staff.fullName,
-      status: leaveRequest.status,
+      employeeEmail: leaveRequest.staff.email,
+      employeeName: leaveRequest.staff.fullName,
+      status: this.toApiStatus(leaveRequest.status),
+      staff: {
+        id: leaveRequest.staff.id,
+        fullName: leaveRequest.staff.fullName,
+        email: leaveRequest.staff.email,
+      },
+      resolvedByStaff: leaveRequest.resolvedByStaff
+        ? {
+            id: leaveRequest.resolvedByStaff.id,
+            fullName: leaveRequest.resolvedByStaff.fullName,
+            email: leaveRequest.resolvedByStaff.email,
+          }
+        : undefined,
     };
   }
 }

@@ -9,7 +9,11 @@ export class CreateLeaveRequestDto {
 
   @ApiProperty({ example: '2026-05-04' })
   @IsDateString()
-  leaveDate!: string;
+  startDate!: string;
+
+  @ApiProperty({ example: '2026-05-06' })
+  @IsDateString()
+  endDate!: string;
 
   @ApiProperty({ example: 'Family trip' })
   @IsString()
