@@ -26,9 +26,8 @@ export function LoginScreen({
 
     setIsSubmitting(true);
     try {
-      const session = await loginWithEmailPassword(email.trim(), password);
-      localStorage.setItem("leave_app_access_token", session.accessToken);
-      onLogin(session.staff);
+      const staff = await loginWithEmailPassword(email.trim(), password);
+      onLogin(staff);
     } catch (error) {
       setMessage(
         error instanceof Error

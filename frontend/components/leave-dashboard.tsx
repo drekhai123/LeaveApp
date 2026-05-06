@@ -1,33 +1,61 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { getCurrentStaff, logoutCurrentStaff } from "@/lib/auth-api";
 import {
   findRoleName,
   mockLeaveRequests,
-  mockNotifications,
   mockStaffs,
 } from "@/lib/mock-leave-management-data";
 import type {
   LeaveRequestRecord,
-  ManagerNotificationRecord,
   StaffRecord,
+  StaffRoleName,
 } from "@/types/leave-app";
 import { AdminMockWorkspace } from "./admin-mock-workspace";
 import { HeadWorkspace } from "./head-workspace";
 import { LoginScreen } from "./login-screen";
-import { ManagerWorkspace } from "./manager-workspace";
 import { MockMetrics } from "./mock-metrics";
 import { StaffWorkspace } from "./staff-workspace";
 
 export function LeaveDashboard() {
-  const [notifications, setNotifications] =
-    useState<ManagerNotificationRecord[]>(mockNotifications);
   const [requests, setRequests] = useState<LeaveRequestRecord[]>(mockLeaveRequests);
   const [staffs, setStaffs] = useState<StaffRecord[]>(mockStaffs);
   const [currentUser, setCurrentUser] = useState<StaffRecord>();
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
 
   const currentRole = currentUser ? findRoleName(currentUser) : undefined;
-  const manager = useMemo(() => findByRole(staffs, "MANAGER"), [staffs]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getCurrentStaff()
+      .then((staff) => {
+        if (!isMounted || !staff) {
+          return;
+        }
+
+        handleLogin(staff);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (isMounted) {
+          setIsCheckingSession(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  if (isCheckingSession) {
+    return (
+      <div className="rounded-md border border-slate-200 bg-white p-5 text-sm text-slate-600">
+        Dang kiem tra phien dang nhap...
+      </div>
+    );
+  }
 
   if (!currentUser || !currentRole) {
     return <LoginScreen onLogin={handleLogin} />;
@@ -63,7 +91,6 @@ export function LeaveDashboard() {
 
     resolveRequest(requestId, headId, "APPROVED");
     decreaseLeaveCredit(requestId);
-    createManagerNotification(requestId, "Đơn nghỉ phép đã được duyệt", "SENT");
   }
 
   function handleReject(requestId: number, headId: number, rejectReason: string) {
@@ -77,7 +104,6 @@ export function LeaveDashboard() {
     }
 
     resolveRequest(requestId, headId, "REJECTED", rejectReason.trim());
-    createManagerNotification(requestId, "Đơn nghỉ phép bị từ chối", "FAILED");
   }
 
   return (
@@ -120,14 +146,20 @@ export function LeaveDashboard() {
         />
       ) : null}
       {currentRole === "MANAGER" ? (
-        <ManagerWorkspace
-          manager={currentUser}
-          notifications={notifications}
+        <AdminMockWorkspace
           requests={requests}
+          staffs={staffs}
+          title="Manager quan ly he thong"
         />
       ) : null}
       {currentRole === "ADMIN" ? (
-        <AdminMockWorkspace requests={requests} staffs={staffs} />
+        <AdminMockWorkspace
+          canCreateUser
+          onCreateStaff={handleCreateStaff}
+          requests={requests}
+          staffs={staffs}
+          title="Admin quan ly he thong"
+        />
       ) : null}
     </div>
   );
@@ -140,8 +172,31 @@ export function LeaveDashboard() {
   }
 
   function handleLogout() {
-    localStorage.removeItem("leave_app_access_token");
+    void logoutCurrentStaff();
     setCurrentUser(undefined);
+  }
+
+  function handleCreateStaff(staff: {
+    email: string;
+    fullName: string;
+    leaveCredit: number;
+    roleName: StaffRoleName;
+  }) {
+    const now = new Date().toISOString();
+    const nextId = Math.max(...staffs.map((item) => item.id)) + 1;
+
+    setStaffs((current) => [
+      {
+        id: nextId,
+        createdAt: now,
+        email: staff.email,
+        fullName: staff.fullName,
+        leaveCredit: staff.leaveCredit,
+        roleId: roleNameToId(staff.roleName),
+        updatedAt: now,
+      },
+      ...current,
+    ]);
   }
 
   function resolveRequest(
@@ -182,28 +237,17 @@ export function LeaveDashboard() {
       ),
     );
   }
-
-  function createManagerNotification(
-    requestId: number,
-    subject: string,
-    emailStatus: ManagerNotificationRecord["emailStatus"],
-  ) {
-    setNotifications((current) => [
-      {
-        id: Math.max(...current.map((item) => item.id)) + 1,
-        createdAt: new Date().toISOString(),
-        emailStatus,
-        leaveRequestId: requestId,
-        managerId: manager.id,
-        subject,
-      },
-      ...current,
-    ]);
-  }
 }
 
-function findByRole(staffs: StaffRecord[], roleName: ReturnType<typeof findRoleName>) {
-  return staffs.find((staff) => findRoleName(staff) === roleName) ?? staffs[0];
+function roleNameToId(roleName: StaffRoleName): number {
+  const roleIds: Record<StaffRoleName, number> = {
+    ADMIN: 4,
+    HEAD: 3,
+    MANAGER: 2,
+    STAFF: 1,
+  };
+
+  return roleIds[roleName];
 }
 
 function hasExistingRequestForDate(
