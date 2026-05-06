@@ -1,12 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class ProcessLeaveRequestDto {
-  @ApiProperty({ example: 'manager-id' })
-  @IsString()
-  managerId!: string;
+  @ApiProperty({ example: 4, description: 'HEAD/MANAGER/ADMIN staff id' })
+  @IsInt()
+  @Min(1)
+  managerId!: number;
 
-  @ApiPropertyOptional({ example: 'Approved' })
+  @ApiPropertyOptional({ example: 'Trùng lịch họp' })
   @IsOptional()
   @IsString()
   note?: string;

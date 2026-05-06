@@ -1,72 +1,156 @@
 # LeaveApp Backend
 
-NestJS API init cho quan ly nghi phep cong ty nho khoang 2-30 nguoi.
+NestJS API cho hệ thống quản lý nghỉ phép dùng MySQL thật qua MikroORM.
 
-## Scope hien tai
+## Scope hiện tại
 
-- Quan ly nhan vien: tao, xem danh sach.
-- Tao request nghi phep.
-- View danh sach request, loc theo trang thai.
-- Duyet hoac tu choi request boi manager/HR.
-- Gui mail qua `MailService` adapter. Hien log mail de API chay ngay; sau co the thay bang SMTP/provider.
-- Luu tru in-memory cho ban init. Phu hop demo/dev, chua dung production DB.
-- Swagger UI va OpenAPI JSON tai `/api/docs` va `/api/docs-json` khi `NODE_ENV` khac `production`.
-- Global request validation bat buoc payload dung schema DTO va loai field ngoai whitelist.
+- Đăng nhập bằng tài khoản trong bảng `staffs`.
+- Quản lý nhân sự: tạo và xem danh sách staff.
+- Tạo đơn nghỉ phép theo từng ngày.
+- Xem danh sách đơn, lọc theo trạng thái.
+- HEAD, MANAGER hoặc ADMIN duyệt/từ chối đơn.
+- Chặn staff gửi trùng đơn nghỉ cùng một ngày.
+- Gửi email qua `MailService` adapter. Hiện tại mail được log ra console để chạy dev nhanh; sau có thể thay bằng SMTP/provider.
+- Swagger UI và OpenAPI JSON tại `/api/docs` và `/api/docs-json` khi `NODE_ENV` khác `production`.
+- Global request validation bắt buộc payload đúng DTO và loại field ngoài whitelist.
+
+## Cấu hình DB
+
+Tạo file `.env` từ `.env.example`, chỉnh thông tin MySQL:
+
+```text
+PORT=3000
+
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=leaveapp
+DB_PASSWORD=leaveapp
+DB_NAME=leaveapp
+
+JWT_SECRET=change-me
+JWT_EXPIRES_IN=1d
+```
+
+Chạy migration để tạo bảng thật và seed role mặc định `STAFF`, `MANAGER`, `HEAD`, `ADMIN`:
+
+```bash
+pnpm run migration:up
+```
+
+Seed dữ liệu demo:
+
+```bash
+mysql -u leaveapp -p leaveapp < scripts/demo-seed.sql
+```
+
+Tất cả tài khoản demo dùng mật khẩu:
+
+```text
+12345678
+```
+
+```text
+STAFF   an@leaveapp.local
+STAFF   binh@leaveapp.local
+MANAGER quan@leaveapp.local
+HEAD    ha@leaveapp.local
+ADMIN   nam@leaveapp.local
+```
 
 ## API nhanh
 
-Swagger UI chay tai khi `NODE_ENV` khac `production`:
-
-```http
-GET /api/docs
-```
-
-OpenAPI JSON:
-
-```http
-GET /api/docs-json
-```
-
 ```http
 GET /health
-GET /employees
-POST /employees
+GET /api/docs
+POST /auth/login
+GET /auth/me
+GET /staffs
+POST /staffs
 GET /leave-requests
-GET /leave-requests?status=pending
+GET /leave-requests?status=PENDING
 GET /leave-requests/:id
 POST /leave-requests
 PATCH /leave-requests/:id/approve
 PATCH /leave-requests/:id/reject
 ```
 
-Vi du tao nhan vien:
+## Auth API
+
+Đăng nhập bằng tài khoản trong bảng `staffs`.
+
+```http
+POST /auth/login
+Content-Type: application/json
+```
 
 ```json
 {
-  "name": "Nguyen Van A",
-  "email": "a@company.local",
-  "role": "employee",
-  "annualLeaveDays": 12
+  "email": "an@company.local",
+  "password": "12345678"
 }
 ```
 
-Vi du tao request:
+Response:
 
 ```json
 {
-  "employeeId": "employee-id",
-  "startDate": "2026-05-04",
-  "endDate": "2026-05-08",
-  "reason": "Family trip"
+  "accessToken": "jwt-token",
+  "staff": {
+    "id": 1,
+    "fullName": "Nguyễn Văn An",
+    "email": "an@company.local",
+    "role": "STAFF",
+    "leaveCredit": 12
+  }
 }
 ```
 
-Vi du duyet request:
+Kiểm tra token hiện tại:
+
+```http
+GET /auth/me
+Authorization: Bearer <accessToken>
+```
+
+## Ví dụ payload
+
+Tạo nhân viên:
 
 ```json
 {
-  "managerId": "manager-id",
-  "note": "Approved"
+  "fullName": "Nguyễn Văn An",
+  "email": "an@company.local",
+  "password": "12345678",
+  "roleId": 1,
+  "leaveCredit": 12
+}
+```
+
+Tạo đơn nghỉ:
+
+```json
+{
+  "staffId": 1,
+  "leaveDate": "2026-05-07",
+  "reason": "Việc gia đình"
+}
+```
+
+Duyệt đơn:
+
+```json
+{
+  "managerId": 3,
+  "note": "Đồng ý"
+}
+```
+
+Từ chối đơn:
+
+```json
+{
+  "managerId": 3,
+  "note": "Trùng lịch họp"
 }
 ```
 
@@ -76,28 +160,18 @@ Vi du duyet request:
 pnpm install
 ```
 
-## Compile and run the project
+## Compile and run
 
 ```bash
-# development
-pnpm run start
-
-# watch mode
 pnpm run start:dev
-
-# production mode
+pnpm run build
 pnpm run start:prod
 ```
 
 ## Run tests
 
 ```bash
-# unit tests
 pnpm run test
-
-# e2e tests
 pnpm run test:e2e
-
-# test coverage
 pnpm run test:cov
 ```

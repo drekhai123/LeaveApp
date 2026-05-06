@@ -1,5 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsEmail,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class CreateStaffDto {
   @ApiProperty({ example: 'Nguyen Van A' })
@@ -27,4 +35,3 @@ export class CreateStaffDto {
   @Max(365)
   leaveCredit?: number;
 }
-

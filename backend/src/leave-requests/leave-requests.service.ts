@@ -19,6 +19,10 @@ export class LeaveRequestsService {
     if (!dto.reason?.trim()) {
       throw new BadRequestException('Leave reason is required');
     }
+    if (!this.isValidDate(dto.leaveDate)) {
+      throw new BadRequestException('Leave date is invalid');
+    }
+    await this.ensureNoDuplicateRequest(staff.id, dto.leaveDate);
 
     const leaveRequest: LeaveRequest = {
       id: crypto.randomUUID(),
@@ -37,15 +41,15 @@ export class LeaveRequestsService {
     return leaveRequest;
   }
 
-  findAll(status?: LeaveRequestStatus): LeaveRequest[] {
-    const requests = [...this.leaveRequests.values()];
-    return status
-      ? requests.filter((request) => request.status === status)
-      : requests;
+  async findById(id: string): Promise<LeaveRequest> {
+    return this.toResponse(await this.findEntityById(id));
   }
 
-  findById(id: string): LeaveRequest {
-    const leaveRequest = this.leaveRequests.get(id);
+  private async findEntityById(id: string): Promise<DbLeaveRequest> {
+    const leaveRequest = await this.leaveRequestRepository.findOne(
+      { id: Number(id) },
+      { populate: ['resolvedByStaff', 'staff'] },
+    );
     if (!leaveRequest) {
       throw new NotFoundException('Leave request not found');
     }
@@ -57,17 +61,17 @@ export class LeaveRequestsService {
     id: string,
     dto: ProcessLeaveRequestDto,
   ): Promise<LeaveRequest> {
-    return this.process(id, dto, 'approved');
+    return this.process(id, dto, LeaveStatus.APPROVED);
   }
 
   async reject(id: string, dto: ProcessLeaveRequestDto): Promise<LeaveRequest> {
-    return this.process(id, dto, 'rejected');
+    return this.process(id, dto, LeaveStatus.REJECTED);
   }
 
   private async process(
     id: string,
     dto: ProcessLeaveRequestDto,
-    status: LeaveRequestStatus,
+    status: LeaveStatus,
   ): Promise<LeaveRequest> {
     const leaveRequest = this.findById(id);
     if (leaveRequest.status !== 'pending') {
@@ -86,27 +90,52 @@ export class LeaveRequestsService {
     return updatedRequest;
   }
 
-  private calculateBusinessDays(startDate: string, endDate: string): number {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    if (
-      Number.isNaN(start.getTime()) ||
-      Number.isNaN(end.getTime()) ||
-      start > end
-    ) {
-      throw new BadRequestException('Leave dates are invalid');
+  private async ensureNoDuplicateRequest(
+    staffId: number,
+    leaveDate: string,
+  ): Promise<void> {
+    const existingRequest = await this.leaveRequestRepository.findOne({
+      leaveDate,
+      staff: staffId,
+    });
+    if (existingRequest) {
+      throw new BadRequestException(
+        'Staff already has a leave request for this date',
+      );
     }
+  }
 
-    let businessDays = 0;
-    const cursor = new Date(start);
-    while (cursor <= end) {
-      const day = cursor.getDay();
-      if (day !== 0 && day !== 6) {
-        businessDays += 1;
-      }
-      cursor.setDate(cursor.getDate() + 1);
-    }
+  private async notifyHeads(leaveRequest: DbLeaveRequest): Promise<void> {
+    const heads = await this.staffsService.findByRoleName('HEAD');
+    await Promise.all(
+      heads.map((head) =>
+        this.mailService.send({
+          to: head.email,
+          subject: 'New leave request pending approval',
+          text: `${leaveRequest.staff.fullName} requested leave on ${leaveRequest.leaveDate}.`,
+        }),
+      ),
+    );
+  }
 
-    return businessDays;
+  private isValidDate(value: string): boolean {
+    const date = new Date(value);
+    return !Number.isNaN(date.getTime());
+  }
+
+  private toResponse(leaveRequest: DbLeaveRequest): LeaveRequest {
+    return {
+      id: leaveRequest.id,
+      createdAt: leaveRequest.createdAt.toISOString(),
+      leaveDate: leaveRequest.leaveDate,
+      reason: leaveRequest.reason ?? '',
+      rejectReason: leaveRequest.rejectReason,
+      resolvedAt: leaveRequest.resolvedAt?.toISOString(),
+      resolvedBy: leaveRequest.resolvedByStaff?.id,
+      staffEmail: leaveRequest.staff.email,
+      staffId: leaveRequest.staff.id,
+      staffName: leaveRequest.staff.fullName,
+      status: leaveRequest.status,
+    };
   }
 }

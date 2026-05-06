@@ -1,0 +1,99 @@
+"use client";
+
+import { useState } from "react";
+import { loginWithEmailPassword } from "@/lib/auth-api";
+import type { StaffRecord } from "@/types/leave-app";
+import { InlineAlert } from "./inline-alert";
+
+export function LoginScreen({
+  onLogin,
+}: {
+  onLogin: (staff: StaffRecord) => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [message, setMessage] = useState<string>();
+  const [password, setPassword] = useState("");
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage(undefined);
+
+    if (!email.trim() || !password.trim()) {
+      setMessage("Vui lòng nhập email và mật khẩu.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const session = await loginWithEmailPassword(email.trim(), password);
+      localStorage.setItem("leave_app_access_token", session.accessToken);
+      onLogin(session.staff);
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Đăng nhập thất bại. Vui lòng thử lại.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1fr_420px]">
+      <section className="rounded-md border border-slate-200 bg-white p-5">
+        <p className="text-sm font-medium text-slate-500">Đăng nhập API</p>
+        <h2 className="mt-2 text-2xl font-semibold text-slate-950">
+          Đăng nhập LeaveManagement
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-slate-600">
+          Nhập tài khoản đã tồn tại trong bảng `staffs`. Sau khi đăng nhập thành
+          công, giao diện sẽ điều hướng dashboard theo role thật trả về từ backend.
+        </p>
+      </section>
+
+      <section className="rounded-md border border-slate-200 bg-white p-5">
+        <h3 className="text-base font-semibold text-slate-950">Thông tin đăng nhập</h3>
+        <form className="mt-4 grid gap-3" onSubmit={handleSubmit}>
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Email
+            <input
+              autoComplete="email"
+              className={inputClassName}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="an@company.local"
+              type="email"
+              value={email}
+            />
+          </label>
+          <label className="grid gap-1 text-sm font-medium text-slate-700">
+            Mật khẩu
+            <input
+              autoComplete="current-password"
+              className={inputClassName}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Nhập mật khẩu"
+              type="password"
+              value={password}
+            />
+          </label>
+          <button
+            className="rounded-md bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-400"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
+          </button>
+        </form>
+        {message ? (
+          <div className="mt-3">
+            <InlineAlert message={message} tone="error" />
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
+const inputClassName =
+  "rounded-md border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-sky-500";
