@@ -12,7 +12,7 @@ describe('LeaveRequestsService', () => {
   let dbRequests: DbLeaveRequest[];
   let leaveRequestsService: LeaveRequestsService;
   let nextId: number;
-  let staffsService: Pick<StaffsService, 'findById' | 'findByRoleName'>;
+  let staffsService: Pick<StaffsService, 'findByRoleName' | 'findEntityById'>;
 
   beforeEach(() => {
     dbRequests = [];
@@ -67,7 +67,7 @@ describe('LeaveRequestsService', () => {
     };
 
     staffsService = {
-      findById: jest.fn((id: number): Promise<Staff> => {
+      findEntityById: jest.fn((id: number): Promise<Staff> => {
         const staff = mockStaffs.find((item) => item.id === id);
         if (!staff) {
           throw new Error('Staff not found');

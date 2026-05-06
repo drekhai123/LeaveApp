@@ -8,15 +8,18 @@ import { map, Observable } from 'rxjs';
 import { SuccessResponseDto } from '../dto/success-response.dto';
 
 @Injectable()
-export class ResponseInterceptor<T>
-  implements NestInterceptor<T, SuccessResponseDto<T>>
-{
+export class ResponseInterceptor<T> implements NestInterceptor<
+  T,
+  SuccessResponseDto<T>
+> {
   intercept(
     context: ExecutionContext,
     next: CallHandler<T>,
   ): Observable<SuccessResponseDto<T>> {
     const request = context.switchToHttp().getRequest<{ url: string }>();
-    const response = context.switchToHttp().getResponse<{ statusCode: number }>();
+    const response = context
+      .switchToHttp()
+      .getResponse<{ statusCode: number }>();
 
     return next.handle().pipe(
       map((data) => ({

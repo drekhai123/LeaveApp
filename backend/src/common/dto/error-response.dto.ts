@@ -19,6 +19,8 @@ export class ErrorResponseDto {
   @ApiProperty({ example: '/staffs' })
   path!: string;
 
-  @ApiPropertyOptional({ example: { fullName: ['fullName should not be empty'] } })
+  @ApiPropertyOptional({
+    example: { fullName: ['fullName should not be empty'] },
+  })
   details?: Record<string, unknown>;
 }

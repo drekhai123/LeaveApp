@@ -1,9 +1,5 @@
 import { applyDecorators, Type } from '@nestjs/common';
-import {
-  ApiExtraModels,
-  ApiResponse,
-  getSchemaPath,
-} from '@nestjs/swagger';
+import { ApiExtraModels, ApiResponse, getSchemaPath } from '@nestjs/swagger';
 import { ErrorResponseDto } from '../dto/error-response.dto';
 import { SuccessResponseDto } from '../dto/success-response.dto';
 
@@ -55,7 +51,9 @@ export function ApiSuccessResponse(
   return applyDecorators(...decorators);
 }
 
-export function ApiErrorResponse(options: ApiErrorResponseOptions): MethodDecorator {
+export function ApiErrorResponse(
+  options: ApiErrorResponseOptions,
+): MethodDecorator {
   const errorLabel = toHttpErrorLabel(options.status);
 
   return applyDecorators(
