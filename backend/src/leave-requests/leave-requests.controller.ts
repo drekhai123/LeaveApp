@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Patch,
+  ParseIntPipe,
   Post,
   Query,
 } from '@nestjs/common';
@@ -13,6 +14,7 @@ import {
   ApiSuccessResponse,
 } from '../common/swagger/api-response.decorator';
 import { CreateLeaveRequestDto } from './dto/create-leave-request.dto';
+import { CreateLeaveRequestResponseDto } from './dto/create-leave-request-response.dto';
 import { LeaveRequestResponseDto } from './dto/leave-request-response.dto';
 import { ProcessLeaveRequestDto } from './dto/process-leave-request.dto';
 import {
@@ -49,7 +51,7 @@ export class LeaveRequestsController {
     type: LeaveRequestResponseDto,
   })
   @Get(':id')
-  findById(@Param('id') id: string) {
+  findById(@Param('id', ParseIntPipe) id: number) {
     return this.leaveRequestsService.findById(id);
   }
 
@@ -61,7 +63,7 @@ export class LeaveRequestsController {
   @ApiSuccessResponse({
     description: 'Leave request created',
     status: 201,
-    type: LeaveRequestResponseDto,
+    type: CreateLeaveRequestResponseDto,
   })
   @Post()
   create(@Body() dto: CreateLeaveRequestDto) {
@@ -82,7 +84,10 @@ export class LeaveRequestsController {
     type: LeaveRequestResponseDto,
   })
   @Patch(':id/approve')
-  approve(@Param('id') id: string, @Body() dto: ProcessLeaveRequestDto) {
+  approve(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ProcessLeaveRequestDto,
+  ) {
     return this.leaveRequestsService.approve(id, dto);
   }
 
@@ -100,7 +105,10 @@ export class LeaveRequestsController {
     type: LeaveRequestResponseDto,
   })
   @Patch(':id/reject')
-  reject(@Param('id') id: string, @Body() dto: ProcessLeaveRequestDto) {
+  reject(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ProcessLeaveRequestDto,
+  ) {
     return this.leaveRequestsService.reject(id, dto);
   }
 }

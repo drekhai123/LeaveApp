@@ -4,6 +4,17 @@ import {
   type LeaveRequestStatus,
 } from '../leave-request.model';
 
+class LeaveRequestUserDto {
+  @ApiProperty({ example: 1 })
+  id!: number;
+
+  @ApiProperty({ example: 'Nguyen Van A' })
+  fullName!: string;
+
+  @ApiProperty({ example: 'a@company.local' })
+  email!: string;
+}
+
 export class LeaveRequestResponseDto {
   @ApiProperty({ example: 1 })
   id!: number;
@@ -17,24 +28,36 @@ export class LeaveRequestResponseDto {
   @ApiProperty({ example: 'a@company.local' })
   staffEmail!: string;
 
+  @ApiProperty({ example: 'Nguyen Van A' })
+  employeeName!: string;
+
+  @ApiProperty({ example: 'a@company.local' })
+  employeeEmail!: string;
+
   @ApiProperty({ example: '2026-05-04' })
   leaveDate!: string;
 
   @ApiProperty({ example: 'Family trip' })
   reason!: string;
 
-  @ApiProperty({ enum: LEAVE_REQUEST_STATUSES, example: 'PENDING' })
+  @ApiProperty({ enum: LEAVE_REQUEST_STATUSES, example: 'pending' })
   status!: LeaveRequestStatus;
 
   @ApiPropertyOptional({ example: 'Trùng lịch họp' })
   rejectReason?: string;
 
   @ApiPropertyOptional({ example: 4 })
-  resolvedBy?: number;
+  resolvedByStaffId?: number;
 
   @ApiPropertyOptional({ example: '2026-05-05T10:00:00.000Z' })
-  resolvedAt?: string;
+  processedAt?: string;
 
   @ApiProperty({ example: '2026-05-05T09:00:00.000Z' })
   createdAt!: string;
+
+  @ApiProperty({ type: LeaveRequestUserDto })
+  staff!: LeaveRequestUserDto;
+
+  @ApiPropertyOptional({ type: LeaveRequestUserDto })
+  resolvedByStaff?: LeaveRequestUserDto;
 }
