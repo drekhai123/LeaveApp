@@ -7,10 +7,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import {
-  ApiQuery,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
   ApiErrorResponse,
   ApiSuccessResponse,
@@ -56,7 +53,10 @@ export class LeaveRequestsController {
     return this.leaveRequestsService.findById(id);
   }
 
-  @ApiErrorResponse({ status: 400, description: 'Invalid leave request payload' })
+  @ApiErrorResponse({
+    status: 400,
+    description: 'Invalid leave request payload',
+  })
   @ApiErrorResponse({ status: 404, description: 'Employee not found' })
   @ApiSuccessResponse({
     description: 'Leave request created',

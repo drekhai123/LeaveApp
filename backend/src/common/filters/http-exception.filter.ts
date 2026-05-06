@@ -72,19 +72,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
   }
 
   private defaultErrorLabel(status: number): string {
-    switch (status) {
-      case HttpStatus.BAD_REQUEST:
-        return 'Bad Request';
-      case HttpStatus.UNAUTHORIZED:
-        return 'Unauthorized';
-      case HttpStatus.FORBIDDEN:
-        return 'Forbidden';
-      case HttpStatus.NOT_FOUND:
-        return 'Not Found';
-      case HttpStatus.CONFLICT:
-        return 'Conflict';
-      default:
-        return 'Internal Server Error';
-    }
+    const labels: Record<number, string> = {
+      [HttpStatus.BAD_REQUEST]: 'Bad Request',
+      [HttpStatus.UNAUTHORIZED]: 'Unauthorized',
+      [HttpStatus.FORBIDDEN]: 'Forbidden',
+      [HttpStatus.NOT_FOUND]: 'Not Found',
+      [HttpStatus.CONFLICT]: 'Conflict',
+    };
+
+    return labels[status] ?? 'Internal Server Error';
   }
 }

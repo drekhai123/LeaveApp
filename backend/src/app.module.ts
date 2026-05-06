@@ -4,15 +4,16 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { DatabaseModule } from './database/database.module';
+import { LeaveRequestsModule } from './leave-requests/leave-requests.module';
 import { StaffsModule } from './staffs/staffs.module';
-// import { LeaveRequestsModule } from './leave-requests/leave-requests.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    AuthModule,
     DatabaseModule,
+    LeaveRequestsModule,
     StaffsModule,
-    // LeaveRequestsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

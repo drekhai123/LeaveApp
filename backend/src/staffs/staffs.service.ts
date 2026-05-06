@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { EntityManager } from '@mikro-orm/core';
 import { InjectRepository } from '@mikro-orm/nestjs';
 import { EntityRepository } from '@mikro-orm/mysql';
@@ -7,6 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { Role } from '../database/entities/role.entity';
 import { Staff } from '../database/entities/staff.entity';
 import { CreateStaffDto } from './dto/create-staff.dto';
@@ -29,8 +29,34 @@ export class StaffsService {
   }
 
   async findById(id: number): Promise<StaffResponseDto> {
-    const staff = await this.findStaffEntity(id);
+    const staff = await this.findEntityById(id);
     return this.toResponse(staff);
+  }
+
+  async findEntityById(id: number): Promise<Staff> {
+    const staff = await this.staffRepository.findOne(
+      { id },
+      { populate: ['role'] },
+    );
+    if (!staff) {
+      throw new NotFoundException('Staff not found');
+    }
+
+    return staff;
+  }
+
+  async findByEmailWithPassword(email: string): Promise<Staff | null> {
+    return this.staffRepository.findOne(
+      { email: this.normalizeEmail(email) },
+      { populate: ['role'] },
+    );
+  }
+
+  async findByRoleName(roleName: string): Promise<Staff[]> {
+    return this.staffRepository.find(
+      { role: { name: roleName } },
+      { populate: ['role'] },
+    );
   }
 
   async create(dto: CreateStaffDto): Promise<StaffResponseDto> {
@@ -40,7 +66,7 @@ export class StaffsService {
     const staff = this.staffRepository.create({
       fullName: dto.fullName.trim(),
       email: dto.email.toLowerCase(),
-      passwordHash: this.hashPassword(dto.password),
+      passwordHash: await this.hashPassword(dto.password),
       role,
       leaveCredit: dto.leaveCredit ?? 12,
       createdAt: new Date(),
@@ -53,7 +79,7 @@ export class StaffsService {
   }
 
   async update(id: number, dto: UpdateStaffDto): Promise<StaffResponseDto> {
-    const staff = await this.findStaffEntity(id);
+    const staff = await this.findEntityById(id);
 
     if (dto.email && dto.email.toLowerCase() !== staff.email) {
       await this.ensureEmailUnique(dto.email);
@@ -65,7 +91,7 @@ export class StaffsService {
     }
 
     if (dto.password) {
-      staff.passwordHash = this.hashPassword(dto.password);
+      staff.passwordHash = await this.hashPassword(dto.password);
     }
 
     if (typeof dto.leaveCredit === 'number') {
@@ -82,20 +108,8 @@ export class StaffsService {
   }
 
   async remove(id: number): Promise<void> {
-    const staff = await this.findStaffEntity(id);
+    const staff = await this.findEntityById(id);
     await this.em.removeAndFlush(staff);
-  }
-
-  private async findStaffEntity(id: number): Promise<Staff> {
-    const staff = await this.staffRepository.findOne(
-      { id },
-      { populate: ['role'] },
-    );
-    if (!staff) {
-      throw new NotFoundException('Staff not found');
-    }
-
-    return staff;
   }
 
   private async resolveRole(roleId?: number): Promise<Role> {
@@ -128,8 +142,12 @@ export class StaffsService {
     }
   }
 
-  private hashPassword(password: string): string {
-    return createHash('sha256').update(password).digest('hex');
+  private hashPassword(password: string): Promise<string> {
+    return bcrypt.hash(password, 10);
+  }
+
+  private normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
   }
 
   private toResponse(staff: Staff): StaffResponseDto {
