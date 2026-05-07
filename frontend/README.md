@@ -49,3 +49,9 @@ http://localhost:3001
 pnpm.cmd run lint
 pnpm.cmd run build
 ```
+
+Checklist role:
+
+- ADMIN: đăng nhập, tạo staff mới, xóa staff không có lịch sử nghỉ phép.
+- HEAD: duyệt và từ chối đơn nghỉ phép.
+- MANAGER: duyệt/từ chối đơn nghỉ phép và xem bảng đơn được cập nhật.

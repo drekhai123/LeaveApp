@@ -1,25 +1,36 @@
 "use client";
 
 import { useState } from "react";
+import type { LeaveRequestPaginationMeta } from "@/lib/leave-requests-api";
 import type { LeaveRequestRecord, StaffRecord } from "@/types/leave-app";
 import { InlineAlert } from "./inline-alert";
-import { MockRequestTable } from "./mock-request-table";
+import { RequestTable } from "./request-table";
 import { SectionHeader } from "./section-header";
 
 export function StaffWorkspace({
+  onRequestsPageChange,
   onSubmit,
+  onViewRequest,
   requests,
+  requestsMeta,
+  requestsPage,
   staff,
+  staffs,
 }: {
-  onSubmit: (staffId: number, leaveDate: string, reason: string) => void;
+  onRequestsPageChange: (nextPage: number) => Promise<void> | void;
+  onSubmit: (staffId: number, leaveDate: string, reason: string) => Promise<void>;
+  onViewRequest?: (request: LeaveRequestRecord) => void;
   requests: LeaveRequestRecord[];
+  requestsMeta?: LeaveRequestPaginationMeta;
+  requestsPage: LeaveRequestRecord[];
   staff: StaffRecord;
+  staffs: StaffRecord[];
 }) {
   const [leaveDate, setLeaveDate] = useState("");
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState<string>();
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(undefined);
 
@@ -36,10 +47,14 @@ export function StaffWorkspace({
       return;
     }
 
-    onSubmit(staff.id, leaveDate, reason.trim());
-    setLeaveDate("");
-    setReason("");
-    setMessage("Đã gửi đơn cho HEAD duyệt.");
+    try {
+      await onSubmit(staff.id, leaveDate, reason.trim());
+      setLeaveDate("");
+      setReason("");
+      setMessage("Đã gửi đơn cho HEAD duyệt.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Gửi đơn thất bại.");
+    }
   }
 
   return (
@@ -47,7 +62,7 @@ export function StaffWorkspace({
       <section className="rounded-md border border-slate-200 bg-white p-4">
         <SectionHeader
           title="Staff gửi đơn"
-          description="Giao diện mô phỏng theo bảng staffs và leave_requests."
+          description="Giao diện theo dữ liệu backend (staffs và leave_requests)."
         />
         <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
           <p className="font-medium text-slate-950">{staff.fullName}</p>
@@ -59,6 +74,7 @@ export function StaffWorkspace({
             Ngày nghỉ
             <input
               className={inputClassName}
+              lang="en-GB"
               onChange={(event) => setLeaveDate(event.target.value)}
               type="date"
               value={leaveDate}
@@ -84,8 +100,21 @@ export function StaffWorkspace({
         ) : null}
       </section>
 
-      <MockRequestTable
-        requests={requests.filter((request) => request.staffId === staff.id)}
+      <RequestTable
+        calendarRequests={requests}
+        onRequestClick={onViewRequest}
+        pagination={
+          requestsMeta
+            ? {
+                page: requestsMeta.page,
+                pageSize: requestsMeta.limit,
+                total: requestsMeta.totalItems,
+                onPageChange: onRequestsPageChange,
+              }
+            : undefined
+        }
+        requests={requestsPage}
+        staffs={staffs}
         title={`Đơn của ${staff.fullName}`}
       />
     </div>

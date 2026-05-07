@@ -5,10 +5,14 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { LeaveRequest } from '../database/entities/leave-request.entity';
 import { Role } from '../database/entities/role.entity';
 import { Staff } from '../database/entities/staff.entity';
+import { PaginationMetaDto } from '../common/dto/success-response.dto';
+import type { AuthenticatedStaff } from '../auth/auth.types';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { StaffResponseDto } from './dto/staff-response.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
@@ -20,12 +24,38 @@ export class StaffsService {
     private readonly staffRepository: EntityRepository<Staff>,
     @InjectRepository(Role)
     private readonly roleRepository: EntityRepository<Role>,
+    @InjectRepository(LeaveRequest)
+    private readonly leaveRequestRepository: EntityRepository<LeaveRequest>,
     private readonly em: EntityManager,
   ) {}
 
-  async findAll(): Promise<StaffResponseDto[]> {
-    const staffs = await this.staffRepository.findAll({ populate: ['role'] });
-    return staffs.map((staff) => this.toResponse(staff));
+  async findAll(
+    page = 1,
+    limit = 10,
+  ): Promise<{ data: StaffResponseDto[]; meta: PaginationMetaDto }> {
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(100, Math.max(1, limit));
+    const offset = (safePage - 1) * safeLimit;
+    const [staffs, totalItems] = await Promise.all([
+      this.staffRepository.findAll({
+        limit: safeLimit,
+        offset,
+        populate: ['role'],
+      }),
+      this.staffRepository.count({}),
+    ]);
+    const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / safeLimit);
+    return {
+      data: staffs.map((staff) => this.toResponse(staff)),
+      meta: {
+        page: safePage,
+        limit: safeLimit,
+        totalItems,
+        totalPages,
+        hasNextPage: safePage < totalPages,
+        hasPreviousPage: safePage > 1 && totalPages > 0,
+      },
+    };
   }
 
   async findById(id: number): Promise<StaffResponseDto> {
@@ -59,9 +89,15 @@ export class StaffsService {
     );
   }
 
-  async create(dto: CreateStaffDto): Promise<StaffResponseDto> {
+  async create(
+    dto: CreateStaffDto,
+    creator: AuthenticatedStaff,
+  ): Promise<StaffResponseDto> {
     await this.ensureEmailUnique(dto.email);
     const role = await this.resolveRole(dto.roleId);
+    await this.assertCanCreateRole(creator.role, role.name);
+
+    const creatorEntity = await this.findEntityById(creator.id);
 
     const staff = this.staffRepository.create({
       fullName: dto.fullName.trim(),
@@ -69,6 +105,7 @@ export class StaffsService {
       passwordHash: await this.hashPassword(dto.password),
       role,
       leaveCredit: dto.leaveCredit ?? 12,
+      createdBy: creatorEntity,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -109,6 +146,22 @@ export class StaffsService {
 
   async remove(id: number): Promise<void> {
     const staff = await this.findEntityById(id);
+    const createdStaffCount = await this.staffRepository.count({
+      createdBy: id,
+    });
+    if (createdStaffCount > 0) {
+      throw new ConflictException(
+        'Cannot delete staff who created other staff records',
+      );
+    }
+    const leaveRequestCount = await this.leaveRequestRepository.count({
+      $or: [{ staff: id }, { resolvedByStaff: id }],
+    });
+    if (leaveRequestCount > 0) {
+      throw new ConflictException(
+        'Cannot delete staff with leave request history',
+      );
+    }
     await this.em.removeAndFlush(staff);
   }
 
@@ -159,5 +212,33 @@ export class StaffsService {
       leaveCredit: staff.leaveCredit,
       createdAt: staff.createdAt.toISOString(),
     };
+  }
+
+  private async assertCanCreateRole(
+    creatorRole: string,
+    targetRole: string,
+  ): Promise<void> {
+    const normalizedCreator = creatorRole.toUpperCase();
+    const normalizedTarget = targetRole.toUpperCase();
+
+    if (normalizedTarget === 'ADMIN') {
+      const adminCount = await this.staffRepository.count({
+        role: { name: 'ADMIN' },
+      });
+      if (adminCount > 0) {
+        throw new ConflictException('Only one ADMIN is allowed');
+      }
+    }
+
+    const allowedTargetsByCreator: Record<string, Set<string>> = {
+      ADMIN: new Set(['ADMIN', 'HEAD', 'MANAGER', 'STAFF']),
+      HEAD: new Set(['HEAD', 'MANAGER', 'STAFF']),
+      MANAGER: new Set(['MANAGER', 'STAFF']),
+    };
+
+    const allowedTargets = allowedTargetsByCreator[normalizedCreator];
+    if (!allowedTargets || !allowedTargets.has(normalizedTarget)) {
+      throw new ForbiddenException('Not allowed to create this role');
+    }
   }
 }

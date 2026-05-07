@@ -6,14 +6,14 @@ import type {
   StaffRoleName,
 } from "@/types/leave-app";
 
-export const mockRoles: RoleRecord[] = [
+export const roles: RoleRecord[] = [
   { id: 1, name: "STAFF" },
   { id: 2, name: "MANAGER" },
   { id: 3, name: "HEAD" },
   { id: 4, name: "ADMIN" },
 ];
 
-export const mockStaffs: StaffRecord[] = [
+export const staffs: StaffRecord[] = [
   createStaff(1, "Nguyễn Văn An", "an@leaveapp.local", "STAFF", 10),
   createStaff(2, "Trần Thị Bình", "binh@leaveapp.local", "STAFF", 7),
   createStaff(3, "Lê Minh Quân", "quan@leaveapp.local", "MANAGER", 12),
@@ -21,7 +21,7 @@ export const mockStaffs: StaffRecord[] = [
   createStaff(5, "Đỗ Hoàng Nam", "nam@leaveapp.local", "ADMIN", 12),
 ];
 
-export const mockLeaveRequests: LeaveRequestRecord[] = [
+export const leaveRequests: LeaveRequestRecord[] = [
   createLeaveRequest(101, 1, "2026-05-09", "Khám sức khỏe định kỳ", "PENDING"),
   createLeaveRequest(102, 2, "2026-05-12", "Việc gia đình", "APPROVED", 4),
   createLeaveRequest(
@@ -35,13 +35,13 @@ export const mockLeaveRequests: LeaveRequestRecord[] = [
   ),
 ];
 
-export const mockNotifications: ManagerNotificationRecord[] = [
+export const notifications: ManagerNotificationRecord[] = [
   createNotification(201, 3, 102, "Đơn nghỉ phép đã được duyệt", "SENT"),
   createNotification(202, 3, 103, "Đơn nghỉ phép bị từ chối", "FAILED"),
 ];
 
 export function findRoleName(staff: StaffRecord): StaffRoleName {
-  return mockRoles.find((role) => role.id === staff.roleId)?.name ?? "STAFF";
+  return roles.find((role) => role.id === staff.roleId)?.name ?? "STAFF";
 }
 
 export function findStaffName(staffId?: number): string {
@@ -49,7 +49,7 @@ export function findStaffName(staffId?: number): string {
     return "-";
   }
 
-  return mockStaffs.find((staff) => staff.id === staffId)?.fullName ?? "-";
+  return staffs.find((staff) => staff.id === staffId)?.fullName ?? "-";
 }
 
 function createStaff(
@@ -60,7 +60,7 @@ function createStaff(
   leaveCredit: number,
 ): StaffRecord {
   const now = "2026-05-06T09:00:00.000Z";
-  const roleId = mockRoles.find((role) => role.name === roleName)?.id ?? 1;
+  const roleId = roles.find((role) => role.name === roleName)?.id ?? 1;
 
   return {
     id,
@@ -68,7 +68,7 @@ function createStaff(
     email,
     fullName,
     leaveCredit,
-    passwordHash: "mock-password-123456",
+    passwordHash: "sample-password-123456",
     roleId,
     updatedAt: now,
   };

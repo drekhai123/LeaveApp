@@ -1,14 +1,21 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Get,
   Param,
   Patch,
   ParseIntPipe,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
+import type { AuthenticatedStaff } from '../auth/auth.types';
+import { CurrentStaff } from '../common/decorators/current-staff.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
 import {
   ApiErrorResponse,
   ApiSuccessResponse,
@@ -33,6 +40,9 @@ export class LeaveRequestsController {
     enum: LEAVE_REQUEST_STATUSES,
     required: false,
   })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 10 })
+  @ApiQuery({ name: 'staffId', required: false, example: 1 })
   @ApiSuccessResponse({
     description: 'Leave request list',
     status: 200,
@@ -40,8 +50,18 @@ export class LeaveRequestsController {
     type: LeaveRequestResponseDto,
   })
   @Get()
-  findAll(@Query('status') status?: LeaveRequestStatus) {
-    return this.leaveRequestsService.findAll(status);
+  findAll(
+    @Query('status') status: LeaveRequestStatus | undefined,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('staffId') staffIdRaw?: string,
+  ) {
+    const staffId = staffIdRaw ? Number(staffIdRaw) : undefined;
+    const safeStaffId =
+      typeof staffId === 'number' && Number.isFinite(staffId) && staffId > 0
+        ? staffId
+        : undefined;
+    return this.leaveRequestsService.findAll(status, page, limit, safeStaffId);
   }
 
   @ApiErrorResponse({ status: 404, description: 'Leave request not found' })
@@ -83,12 +103,16 @@ export class LeaveRequestsController {
     status: 200,
     type: LeaveRequestResponseDto,
   })
+  @ApiBearerAuth('jwt')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('HEAD', 'MANAGER', 'ADMIN')
   @Patch(':id/approve')
   approve(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ProcessLeaveRequestDto,
+    @CurrentStaff() staff: AuthenticatedStaff,
   ) {
-    return this.leaveRequestsService.approve(id, dto);
+    return this.leaveRequestsService.approve(id, dto, staff.id);
   }
 
   @ApiErrorResponse({
@@ -104,11 +128,15 @@ export class LeaveRequestsController {
     status: 200,
     type: LeaveRequestResponseDto,
   })
+  @ApiBearerAuth('jwt')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('HEAD', 'MANAGER', 'ADMIN')
   @Patch(':id/reject')
   reject(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: ProcessLeaveRequestDto,
+    @CurrentStaff() staff: AuthenticatedStaff,
   ) {
-    return this.leaveRequestsService.reject(id, dto);
+    return this.leaveRequestsService.reject(id, dto, staff.id);
   }
 }

@@ -1,5 +1,6 @@
 export type MailMessage = {
+  to: string | string[];
   subject: string;
   text: string;
-  to: string;
+  html?: string;
 };

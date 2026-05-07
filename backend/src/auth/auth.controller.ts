@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import {
+  ApiBearerAuth,
   ApiOkResponse,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -25,6 +26,7 @@ export class AuthController {
 
   @ApiOkResponse({ description: 'Current authenticated staff' })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid token' })
+  @ApiBearerAuth('jwt')
   @UseGuards(JwtAuthGuard)
   @Get('me')
   me(@CurrentStaff() staff: AuthenticatedStaff) {

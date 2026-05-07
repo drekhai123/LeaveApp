@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { loginWithEmailPassword } from "@/lib/auth-api";
+import { saveAccessToken } from "@/lib/session";
 import type { StaffRecord } from "@/types/leave-app";
 import { InlineAlert } from "./inline-alert";
 
@@ -26,8 +27,9 @@ export function LoginScreen({
 
     setIsSubmitting(true);
     try {
-      const staff = await loginWithEmailPassword(email.trim(), password);
-      onLogin(staff);
+      const session = await loginWithEmailPassword(email.trim(), password);
+      saveAccessToken(session.accessToken);
+      onLogin(session.staff);
     } catch (error) {
       setMessage(
         error instanceof Error

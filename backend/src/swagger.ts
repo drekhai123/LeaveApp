@@ -20,6 +20,14 @@ export function configureSwagger(app: INestApplication): void {
     .setTitle('LeaveApp API')
     .setDescription(appDescription)
     .setVersion(appVersion)
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+      },
+      'jwt',
+    )
     .addTag('health')
     .addTag('staffs')
     .addTag('leave-requests')

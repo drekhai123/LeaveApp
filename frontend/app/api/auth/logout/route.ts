@@ -4,6 +4,7 @@ export async function POST() {
   const response = NextResponse.json({ success: true });
 
   response.cookies.delete("access_token");
+  response.cookies.delete("leave_app_access_token");
 
   return response;
 }

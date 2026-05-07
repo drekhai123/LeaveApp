@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { formatDate, formatMonth, leaveStatusLabel } from "@/lib/formatters";
-import { findStaffName } from "@/lib/mock-leave-management-data";
-import type { LeaveRequestRecord } from "@/types/leave-app";
+import { findStaffName } from "@/lib/leave-app-helpers";
+import type { LeaveRequestRecord, StaffRecord } from "@/types/leave-app";
 import { EmptyState } from "./empty-state";
 
 const weekDays = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
@@ -14,7 +15,23 @@ const statusDotClasses: Record<LeaveRequestRecord["status"], string> = {
   REJECTED: "bg-rose-500",
 };
 
-export function MockLeaveCalendar({ requests }: { requests: LeaveRequestRecord[] }) {
+const statusBadgeClasses: Record<LeaveRequestRecord["status"], string> = {
+  APPROVED: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  PENDING: "border-sky-200 bg-sky-50 text-sky-700",
+  REJECTED: "border-rose-200 bg-rose-50 text-rose-700",
+};
+
+export function LeaveCalendar({
+  requests,
+  staffs,
+  controls,
+  onRequestClick,
+}: {
+  requests: LeaveRequestRecord[];
+  staffs: StaffRecord[];
+  controls?: ReactNode;
+  onRequestClick?: (request: LeaveRequestRecord) => void;
+}) {
   const firstRequestDate = requests[0]?.leaveDate ?? new Date().toISOString();
   const initialMonth = toMonthStart(firstRequestDate);
   const [visibleMonth, setVisibleMonth] = useState(initialMonth);
@@ -37,7 +54,8 @@ export function MockLeaveCalendar({ requests }: { requests: LeaveRequestRecord[]
             Chọn từng ngày để xem đơn nghỉ và trạng thái xử lý.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {controls}
           <button
             className={navButtonClassName}
             onClick={() => setVisibleMonth(addMonths(visibleMonth, -1))}
@@ -106,15 +124,22 @@ export function MockLeaveCalendar({ requests }: { requests: LeaveRequestRecord[]
         ) : (
           <div className="mt-3 grid gap-2">
             {selectedRequests.map((request) => (
-              <div className="rounded-md bg-white p-3 text-sm" key={request.id}>
+              <button
+                className="w-full rounded-md bg-white p-3 text-left text-sm hover:bg-slate-50"
+                key={request.id}
+                onClick={() => onRequestClick?.(request)}
+                type="button"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-medium text-slate-950">{findStaffName(request.staffId)}</p>
-                  <span className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700">
+                  <p className="font-medium text-slate-950">{findStaffName(staffs, request.staffId)}</p>
+                  <span
+                    className={`rounded-md border px-2 py-1 text-xs font-medium ${statusBadgeClasses[request.status]}`}
+                  >
                     {leaveStatusLabel(request.status)}
                   </span>
                 </div>
                 <p className="mt-1 text-slate-600">{request.reason}</p>
-              </div>
+              </button>
             ))}
           </div>
         )}

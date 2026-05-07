@@ -1,6 +1,6 @@
 import type { LeaveRequestRecord, StaffRecord } from "@/types/leave-app";
 
-export function MockMetrics({
+export function Metrics({
   requests,
   staffs,
 }: {

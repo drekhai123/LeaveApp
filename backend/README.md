@@ -10,7 +10,7 @@ NestJS API cho hệ thống quản lý nghỉ phép dùng MySQL thật qua Mikro
 - Xem danh sách đơn, lọc theo trạng thái.
 - HEAD, MANAGER hoặc ADMIN duyệt/từ chối đơn.
 - Chặn staff gửi trùng đơn nghỉ cùng một ngày.
-- Gửi email qua `MailService` adapter. Hiện tại mail được log ra console để chạy dev nhanh; sau có thể thay bằng SMTP/provider.
+- Gửi email qua `MailService` (SMTP). Khi staff tạo leave request, hệ thống sẽ notify tất cả `MANAGER` và `HEAD`.
 - Swagger UI và OpenAPI JSON tại `/api/docs` và `/api/docs-json` khi `NODE_ENV` khác `production`.
 - Global request validation bắt buộc payload đúng DTO và loại field ngoài whitelist.
 
@@ -29,6 +29,17 @@ DB_NAME=leaveapp
 
 JWT_SECRET=change-me
 JWT_EXPIRES_IN=1d
+```
+
+Thiết lập SMTP (để gửi email thật):
+
+```text
+SMTP_HOST=smtp.yourprovider.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-user
+SMTP_PASS=your-password
+MAIL_FROM="Leave App <no-reply@yourdomain.com>"
 ```
 
 Chạy migration để tạo bảng thật và seed role mặc định `STAFF`, `MANAGER`, `HEAD`, `ADMIN`:
@@ -136,20 +147,18 @@ Tạo đơn nghỉ:
 }
 ```
 
-Duyệt đơn:
+Duyệt đơn (người duyệt lấy từ JWT đăng nhập, role HEAD/MANAGER/ADMIN):
 
 ```json
 {
-  "managerId": 3,
   "note": "Đồng ý"
 }
 ```
 
-Từ chối đơn:
+Từ chối đơn (người duyệt lấy từ JWT đăng nhập, role HEAD/MANAGER/ADMIN):
 
 ```json
 {
-  "managerId": 3,
   "note": "Trùng lịch họp"
 }
 ```

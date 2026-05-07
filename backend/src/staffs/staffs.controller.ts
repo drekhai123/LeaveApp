@@ -1,18 +1,26 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   Param,
   ParseIntPipe,
   Patch,
   Post,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { CurrentStaff } from '../common/decorators/current-staff.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
 import {
   ApiErrorResponse,
   ApiSuccessResponse,
 } from '../common/swagger/api-response.decorator';
+import type { AuthenticatedStaff } from '../auth/auth.types';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { StaffResponseDto } from './dto/staff-response.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
@@ -29,9 +37,14 @@ export class StaffsController {
     isArray: true,
     type: StaffResponseDto,
   })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 10 })
   @Get()
-  findAll() {
-    return this.staffsService.findAll();
+  findAll(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+  ) {
+    return this.staffsService.findAll(page, limit);
   }
 
   @ApiErrorResponse({ status: 404, description: 'Staff not found' })
@@ -52,9 +65,15 @@ export class StaffsController {
     status: 201,
     type: StaffResponseDto,
   })
+  @ApiBearerAuth('jwt')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'HEAD', 'MANAGER')
   @Post()
-  create(@Body() dto: CreateStaffDto) {
-    return this.staffsService.create(dto);
+  create(
+    @Body() dto: CreateStaffDto,
+    @CurrentStaff() currentStaff: AuthenticatedStaff,
+  ) {
+    return this.staffsService.create(dto, currentStaff);
   }
 
   @ApiErrorResponse({ status: 409, description: 'Email already exists' })
@@ -69,8 +88,19 @@ export class StaffsController {
     return this.staffsService.update(id, dto);
   }
 
+  @ApiErrorResponse({
+    status: 409,
+    description: 'Cannot delete staff with leave request history',
+  })
+  @ApiErrorResponse({
+    status: 409,
+    description: 'Cannot delete staff who created other staff records',
+  })
   @ApiErrorResponse({ status: 404, description: 'Staff not found' })
   @ApiSuccessResponse({ description: 'Staff deleted', status: 200 })
+  @ApiBearerAuth('jwt')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @Delete(':id')
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.staffsService.remove(id);

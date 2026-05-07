@@ -5,7 +5,15 @@ import {
   NestInterceptor,
 } from '@nestjs/common';
 import { map, Observable } from 'rxjs';
-import { SuccessResponseDto } from '../dto/success-response.dto';
+import {
+  SuccessResponseDto,
+  SuccessResponseMeta,
+} from '../dto/success-response.dto';
+
+type ResponsePayload<T> = {
+  data: T;
+  meta?: SuccessResponseMeta;
+};
 
 @Injectable()
 export class ResponseInterceptor<T> implements NestInterceptor<
@@ -22,14 +30,38 @@ export class ResponseInterceptor<T> implements NestInterceptor<
       .getResponse<{ statusCode: number }>();
 
     return next.handle().pipe(
-      map((data) => ({
-        success: true as const,
-        statusCode: response.statusCode,
-        message: 'Request successful',
-        timestamp: new Date().toISOString(),
-        path: request.url,
-        data,
-      })),
+      map((rawPayload) => {
+        const payload = this.normalizePayload(rawPayload);
+        return {
+          success: true as const,
+          statusCode: response.statusCode,
+          message: 'Request successful',
+          timestamp: new Date().toISOString(),
+          path: request.url,
+          data: payload.data,
+          meta: payload.meta ?? null,
+        };
+      }),
     );
+  }
+
+  private normalizePayload(payload: T): ResponsePayload<T> {
+    if (
+      typeof payload === 'object' &&
+      payload !== null &&
+      'data' in payload &&
+      'meta' in payload
+    ) {
+      const normalized = payload as ResponsePayload<T>;
+      return {
+        data: normalized.data,
+        meta: normalized.meta ?? null,
+      };
+    }
+
+    return {
+      data: payload,
+      meta: null,
+    };
   }
 }
