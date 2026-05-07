@@ -1,7 +1,6 @@
 import type { StaffRecord, StaffRoleName } from "@/types/leave-app";
 
-interface LoginResponse {
-  accessToken: string;
+interface AuthStaffResponse {
   staff: {
     email: string;
     fullName: string;
@@ -19,7 +18,7 @@ interface WrappedApiResponse<T> {
 export async function loginWithEmailPassword(
   email: string,
   password: string,
-): Promise<{ accessToken: string; staff: StaffRecord }> {
+): Promise<StaffRecord> {
   const response = await fetch("/api/auth/login", {
     body: JSON.stringify({ email, password }),
     headers: {
@@ -28,37 +27,55 @@ export async function loginWithEmailPassword(
     method: "POST",
   });
 
+  return readStaffResponse(response);
+}
+
+export async function getCurrentStaff(): Promise<StaffRecord | undefined> {
+  const response = await fetch("/api/auth/me", {
+    cache: "no-store",
+    method: "GET",
+  });
+
+  if (response.status === 401) {
+    return undefined;
+  }
+
+  return readStaffResponse(response);
+}
+
+export async function logoutCurrentStaff(): Promise<void> {
+  await fetch("/api/auth/logout", { method: "POST" });
+}
+
+async function readStaffResponse(response: Response): Promise<StaffRecord> {
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
     throw new Error(readErrorMessage(payload, response.status));
   }
 
-  return mapLoginResponse(readLoginPayload(payload));
+  return mapStaffResponse(readAuthStaffPayload(payload).staff);
 }
 
-function mapLoginResponse(payload: LoginResponse) {
+function mapStaffResponse(staff: AuthStaffResponse["staff"]): StaffRecord {
   const now = new Date().toISOString();
 
   return {
-    accessToken: payload.accessToken,
-    staff: {
-      createdAt: now,
-      email: payload.staff.email,
-      fullName: payload.staff.fullName,
-      id: payload.staff.id,
-      leaveCredit: payload.staff.leaveCredit,
-      roleId: roleNameToId(payload.staff.role),
-      updatedAt: now,
-    },
+    createdAt: now,
+    email: staff.email,
+    fullName: staff.fullName,
+    id: staff.id,
+    leaveCredit: staff.leaveCredit,
+    roleId: roleNameToId(staff.role),
+    updatedAt: now,
   };
 }
 
-function readLoginPayload(payload: unknown): LoginResponse {
+function readAuthStaffPayload(payload: unknown): AuthStaffResponse {
   const candidate = unwrapApiResponse(payload);
 
-  if (!isLoginResponse(candidate)) {
-    throw new Error("Phan hoi dang nhap tu backend khong dung dinh dang.");
+  if (!isAuthStaffResponse(candidate)) {
+    throw new Error("Phan hoi xac thuc tu backend khong dung dinh dang.");
   }
 
   return candidate;
@@ -77,15 +94,14 @@ function unwrapApiResponse(payload: unknown): unknown {
   return payload;
 }
 
-function isLoginResponse(payload: unknown): payload is LoginResponse {
+function isAuthStaffResponse(payload: unknown): payload is AuthStaffResponse {
   if (!payload || typeof payload !== "object") {
     return false;
   }
 
-  const value = payload as Partial<LoginResponse>;
+  const value = payload as Partial<AuthStaffResponse>;
 
   return (
-    typeof value.accessToken === "string" &&
     Boolean(value.staff) &&
     typeof value.staff?.email === "string" &&
     typeof value.staff.fullName === "string" &&
