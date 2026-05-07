@@ -1,20 +1,29 @@
 import { formatDateTime, leaveStatusLabel } from "@/lib/formatters";
 import { findStaffName } from "@/lib/leave-app-helpers";
+import type { LeaveRequestPaginationMeta } from "@/lib/leave-requests-api";
 import type {
   LeaveRequestRecord,
   StaffRecord,
 } from "@/types/leave-app";
 import { EmptyState } from "./empty-state";
-import { MockRequestTable } from "./mock-request-table";
+import { RequestTable } from "./request-table";
 import { SectionHeader } from "./section-header";
 
 export function ManagerWorkspace({
   manager,
+  onRequestsPageChange,
+  onViewRequest,
   requests,
+  requestsMeta,
+  requestsPage,
   staffs,
 }: {
   manager: StaffRecord;
+  onRequestsPageChange: (nextPage: number) => Promise<void> | void;
+  onViewRequest?: (request: LeaveRequestRecord) => void;
   requests: LeaveRequestRecord[];
+  requestsMeta?: LeaveRequestPaginationMeta;
+  requestsPage: LeaveRequestRecord[];
   staffs: StaffRecord[];
 }) {
   const processedByManager = requests
@@ -62,7 +71,23 @@ export function ManagerWorkspace({
           </div>
         )}
       </section>
-      <MockRequestTable requests={requests} staffs={staffs} title="Tất cả đơn nghỉ phép" />
+      <RequestTable
+        calendarRequests={requests}
+        onRequestClick={onViewRequest}
+        pagination={
+          requestsMeta
+            ? {
+                page: requestsMeta.page,
+                pageSize: requestsMeta.limit,
+                total: requestsMeta.totalItems,
+                onPageChange: onRequestsPageChange,
+              }
+            : undefined
+        }
+        requests={requestsPage}
+        staffs={staffs}
+        title="Tất cả đơn nghỉ phép"
+      />
     </div>
   );
 }

@@ -2,7 +2,18 @@ import type { StaffRecord, StaffRoleName } from "@/types/leave-app";
 import { readApiErrorMessage, unwrapApiResponse as unwrapApiPayload } from "./api-response";
 import { roleNameToId as mapRoleNameToId } from "./leave-app-mappers";
 
-interface AuthStaffResponse {
+interface LoginResponse {
+  accessToken: string;
+  staff: {
+    email: string;
+    fullName: string;
+    id: number;
+    leaveCredit: number;
+    role: StaffRoleName;
+  };
+}
+
+interface AuthMeResponse {
   staff: {
     email: string;
     fullName: string;
@@ -15,16 +26,27 @@ interface AuthStaffResponse {
 export async function loginWithEmailPassword(
   email: string,
   password: string,
-): Promise<StaffRecord> {
+): Promise<{ accessToken: string; staff: StaffRecord }> {
   const response = await fetch("/api/auth/login", {
     body: JSON.stringify({ email, password }),
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     method: "POST",
   });
 
-  return readStaffResponse(response);
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(readApiErrorMessage(payload, response.status));
+  }
+
+  const candidate = unwrapApiPayload(payload);
+  if (!isLoginResponse(candidate)) {
+    throw new Error("Phan hoi dang nhap tu backend khong dung dinh dang.");
+  }
+
+  return {
+    accessToken: candidate.accessToken,
+    staff: mapStaff(candidate.staff),
+  };
 }
 
 export async function getCurrentStaff(): Promise<StaffRecord | undefined> {
@@ -37,67 +59,36 @@ export async function getCurrentStaff(): Promise<StaffRecord | undefined> {
     return undefined;
   }
 
-  return readStaffResponse(response);
-}
-
-export async function logoutCurrentStaff(): Promise<void> {
-  await fetch("/api/auth/logout", { method: "POST" });
-}
-
-async function readStaffResponse(response: Response): Promise<StaffRecord> {
   const payload = await response.json().catch(() => ({}));
-
   if (!response.ok) {
     throw new Error(readApiErrorMessage(payload, response.status));
   }
 
-  return mapStaffResponse(readAuthStaffPayload(payload).staff);
-}
-
-function mapStaffResponse(staff: AuthStaffResponse["staff"]): StaffRecord {
-  const now = new Date().toISOString();
-
-  return {
-    createdAt: now,
-    email: staff.email,
-    fullName: staff.fullName,
-    id: staff.id,
-    leaveCredit: staff.leaveCredit,
-    roleId: roleNameToId(staff.role),
-    updatedAt: now,
-  };
-}
-
-function readAuthStaffPayload(payload: unknown): AuthStaffResponse {
-  const candidate = unwrapApiResponse(payload);
-
-  if (!isAuthStaffResponse(candidate)) {
+  const candidate = unwrapApiPayload(payload);
+  if (!isAuthMeResponse(candidate)) {
     throw new Error("Phan hoi xac thuc tu backend khong dung dinh dang.");
   }
 
-  return candidate;
+  return mapStaff(candidate.staff);
 }
 
-function unwrapApiResponse(payload: unknown): unknown {
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "data" in payload &&
-    (payload as WrappedApiResponse<unknown>).data
-  ) {
-    return (payload as WrappedApiResponse<unknown>).data;
-  }
-
-  return payload;
+function isLoginResponse(payload: unknown): payload is LoginResponse {
+  if (!payload || typeof payload !== "object") return false;
+  const value = payload as Partial<LoginResponse>;
+  return (
+    typeof value.accessToken === "string" &&
+    Boolean(value.staff) &&
+    typeof value.staff?.email === "string" &&
+    typeof value.staff.fullName === "string" &&
+    typeof value.staff.id === "number" &&
+    typeof value.staff.leaveCredit === "number" &&
+    typeof value.staff.role === "string"
+  );
 }
 
-function isAuthStaffResponse(payload: unknown): payload is AuthStaffResponse {
-  if (!payload || typeof payload !== "object") {
-    return false;
-  }
-
-  const value = payload as Partial<AuthStaffResponse>;
-
+function isAuthMeResponse(payload: unknown): payload is AuthMeResponse {
+  if (!payload || typeof payload !== "object") return false;
+  const value = payload as Partial<AuthMeResponse>;
   return (
     Boolean(value.staff) &&
     typeof value.staff?.email === "string" &&
@@ -106,5 +97,18 @@ function isAuthStaffResponse(payload: unknown): payload is AuthStaffResponse {
     typeof value.staff.leaveCredit === "number" &&
     typeof value.staff.role === "string"
   );
+}
+
+function mapStaff(staff: LoginResponse["staff"]): StaffRecord {
+  const now = new Date().toISOString();
+  return {
+    createdAt: now,
+    updatedAt: now,
+    email: staff.email,
+    fullName: staff.fullName,
+    id: staff.id,
+    leaveCredit: staff.leaveCredit,
+    roleId: mapRoleNameToId(staff.role),
+  };
 }
 

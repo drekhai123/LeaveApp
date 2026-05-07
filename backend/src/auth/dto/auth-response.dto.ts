@@ -18,7 +18,10 @@ class AuthStaffDto {
 }
 
 export class AuthResponseDto {
-  @ApiProperty()
+  @ApiProperty({
+    example:
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsInJvbGUiOiJTVEFGRiIsImlhdCI6MTc3ODEyMzQ1NiwiZXhwIjoxNzc4MjA5ODU2fQ.r5S5O7w8b7yQmY8qkH3l1k6Qq1mYF9yX9v1k2a3b4c5',
+  })
   accessToken!: string;
 
   @ApiProperty({ type: AuthStaffDto })

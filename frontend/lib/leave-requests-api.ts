@@ -1,5 +1,5 @@
 import type { LeaveRequestRecord } from "@/types/leave-app";
-import { readApiErrorMessage, unwrapApiResponse } from "./api-response";
+import { readApiErrorMessage, readSuccessResponse, unwrapApiResponse } from "./api-response";
 import { mapLeaveRequestFromApi } from "./leave-app-mappers";
 import { readAccessToken } from "./session";
 
@@ -20,15 +20,76 @@ type CreateLeaveRequestResponse = {
   totalDays: number;
 };
 
-export async function fetchLeaveRequests(): Promise<LeaveRequestRecord[]> {
-  const response = await authorizedFetch("/api/leave-requests", { method: "GET" });
+export type LeaveRequestStatusFilter = "pending" | "approved" | "rejected";
+
+export type LeaveRequestPaginationMeta = {
+  page: number;
+  limit: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+};
+
+export type FetchLeaveRequestsPageParams = {
+  page: number;
+  limit: number;
+  status?: LeaveRequestStatusFilter;
+  staffId?: number;
+};
+
+export async function fetchLeaveRequestsPage(
+  params: FetchLeaveRequestsPageParams,
+): Promise<{ requests: LeaveRequestRecord[]; meta?: LeaveRequestPaginationMeta }> {
+  const search = new URLSearchParams({
+    page: String(params.page),
+    limit: String(params.limit),
+  });
+  if (params.status) {
+    search.set("status", params.status);
+  }
+  if (typeof params.staffId === "number") {
+    search.set("staffId", String(params.staffId));
+  }
+
+  const response = await authorizedFetch(`/api/leave-requests?${search.toString()}`, {
+    method: "GET",
+  });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(readApiErrorMessage(payload, response.status));
   }
 
-  const data = unwrapApiResponse<LeaveRequestApiDto[]>(payload);
-  return data.map(mapLeaveRequestFromApi);
+  const { data, meta } = readSuccessResponse<LeaveRequestApiDto[], LeaveRequestPaginationMeta>(
+    payload,
+  );
+  return { requests: data.map(mapLeaveRequestFromApi), meta };
+}
+
+export async function fetchAllLeaveRequests(
+  params?: { staffId?: number; pageSize?: number; maxPages?: number },
+): Promise<LeaveRequestRecord[]> {
+  const pageSize = params?.pageSize ?? 100;
+  const maxPages = params?.maxPages ?? 50;
+
+  let page = 1;
+  const result: LeaveRequestRecord[] = [];
+
+  while (page <= maxPages) {
+    const { requests, meta } = await fetchLeaveRequestsPage({
+      page,
+      limit: pageSize,
+      staffId: params?.staffId,
+    });
+    result.push(...requests);
+
+    if (!meta?.hasNextPage) {
+      break;
+    }
+    page += 1;
+  }
+
+  return result;
 }
 
 export async function approveLeaveRequest(id: number, note?: string): Promise<LeaveRequestRecord> {

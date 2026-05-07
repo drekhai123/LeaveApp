@@ -1,5 +1,27 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+export class PaginationMetaDto {
+  @ApiProperty({ example: 1 })
+  page!: number;
+
+  @ApiProperty({ example: 10 })
+  limit!: number;
+
+  @ApiProperty({ example: 32 })
+  totalItems!: number;
+
+  @ApiProperty({ example: 4 })
+  totalPages!: number;
+
+  @ApiProperty({ example: true })
+  hasNextPage!: boolean;
+
+  @ApiProperty({ example: false })
+  hasPreviousPage!: boolean;
+}
+
+export type SuccessResponseMeta = PaginationMetaDto | null;
+
 export class SuccessResponseDto<T = unknown> {
   @ApiProperty({ example: true })
   success!: true;
@@ -18,4 +40,11 @@ export class SuccessResponseDto<T = unknown> {
 
   @ApiProperty({ nullable: true })
   data!: T;
+
+  @ApiProperty({
+    nullable: true,
+    type: PaginationMetaDto,
+    description: 'Optional metadata, used for paginated responses',
+  })
+  meta!: SuccessResponseMeta;
 }

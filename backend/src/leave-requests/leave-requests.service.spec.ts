@@ -20,16 +20,18 @@ describe('LeaveRequestsService', () => {
 
     const entityManager = {
       flush: jest.fn().mockResolvedValue(undefined),
-      persistAndFlush: jest.fn().mockImplementation((payload: DbLeaveRequest | DbLeaveRequest[]) => {
-        const requests = Array.isArray(payload) ? payload : [payload];
-        for (const request of requests) {
-          request.id = nextId;
-          nextId += 1;
-          dbRequests.push(request);
-        }
+      persistAndFlush: jest
+        .fn()
+        .mockImplementation((payload: DbLeaveRequest | DbLeaveRequest[]) => {
+          const requests = Array.isArray(payload) ? payload : [payload];
+          for (const request of requests) {
+            request.id = nextId;
+            nextId += 1;
+            dbRequests.push(request);
+          }
 
-        return Promise.resolve();
-      }),
+          return Promise.resolve();
+        }),
     };
 
     const leaveRequestRepository = {
@@ -56,7 +58,10 @@ describe('LeaveRequestsService', () => {
                 return item.id === filter.id;
               }
 
-              if (filter.leaveDate === undefined || filter.staff === undefined) {
+              if (
+                filter.leaveDate === undefined ||
+                filter.staff === undefined
+              ) {
                 return false;
               }
 
@@ -154,13 +159,20 @@ describe('LeaveRequestsService', () => {
       staffId: 1,
     });
 
-    const approved = await leaveRequestsService.approve(created.requests[0].id, {
-      resolvedByStaffId: 2,
-      note: 'Approved',
-    });
+    const staff = await staffsService.findEntityById(1);
+    expect(staff.leaveCredit).toBe(12);
+
+    const approved = await leaveRequestsService.approve(
+      created.requests[0].id,
+      {
+        note: 'Approved',
+      },
+      2,
+    );
 
     expect(approved.status).toBe('approved');
     expect(approved.resolvedByStaffId).toBe(2);
+    expect(staff.leaveCredit).toBe(11);
   });
 
   it('allows heads to reject pending requests', async () => {
@@ -171,10 +183,13 @@ describe('LeaveRequestsService', () => {
       staffId: 1,
     });
 
-    const rejected = await leaveRequestsService.reject(created.requests[0].id, {
-      resolvedByStaffId: 2,
-      note: 'Trung lich hop',
-    });
+    const rejected = await leaveRequestsService.reject(
+      created.requests[0].id,
+      {
+        note: 'Trung lich hop',
+      },
+      2,
+    );
 
     expect(rejected.status).toBe('rejected');
     expect(rejected.rejectReason).toBe('Trung lich hop');
@@ -189,7 +204,7 @@ describe('LeaveRequestsService', () => {
     });
 
     await expect(
-      leaveRequestsService.approve(created.requests[0].id, { resolvedByStaffId: 1 }),
+      leaveRequestsService.approve(created.requests[0].id, {}, 1),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -201,15 +216,14 @@ describe('LeaveRequestsService', () => {
       staffId: 1,
     });
 
-    await leaveRequestsService.approve(created.requests[0].id, {
-      resolvedByStaffId: 2,
-    });
+    await leaveRequestsService.approve(created.requests[0].id, {}, 2);
 
     await expect(
-      leaveRequestsService.reject(created.requests[0].id, {
-        resolvedByStaffId: 2,
-        note: 'Late update',
-      }),
+      leaveRequestsService.reject(
+        created.requests[0].id,
+        { note: 'Late update' },
+        2,
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

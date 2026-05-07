@@ -3,12 +3,14 @@ import { InjectRepository } from '@mikro-orm/nestjs';
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { LeaveRequest as DbLeaveRequest } from '../database/entities/leave-request.entity';
 import { LeaveStatus } from '../database/enums/leave-status.enum';
 import { MailService } from '../mail/mail.service';
 import { StaffsService } from '../staffs/staffs.service';
+import { PaginationMetaDto } from '../common/dto/success-response.dto';
 import { CreateLeaveRequestDto } from './dto/create-leave-request.dto';
 import { ProcessLeaveRequestDto } from './dto/process-leave-request.dto';
 import {
@@ -19,6 +21,8 @@ import {
 
 @Injectable()
 export class LeaveRequestsService {
+  private readonly logger = new Logger(LeaveRequestsService.name);
+
   constructor(
     @InjectRepository(DbLeaveRequest)
     private readonly leaveRequestRepository: EntityRepository<DbLeaveRequest>,
@@ -26,7 +30,9 @@ export class LeaveRequestsService {
     private readonly mailService: MailService,
   ) {}
 
-  async create(dto: CreateLeaveRequestDto): Promise<CreateLeaveRequestResponse> {
+  async create(
+    dto: CreateLeaveRequestDto,
+  ): Promise<CreateLeaveRequestResponse> {
     const staff = await this.staffsService.findEntityById(dto.staffId);
 
     if (!dto.reason?.trim()) {
@@ -38,7 +44,9 @@ export class LeaveRequestsService {
 
     const leaveDates = this.getBusinessDates(dto.startDate, dto.endDate);
     if (leaveDates.length === 0) {
-      throw new BadRequestException('Leave range must include at least one business day');
+      throw new BadRequestException(
+        'Leave range must include at least one business day',
+      );
     }
 
     for (const leaveDate of leaveDates) {
@@ -56,8 +64,16 @@ export class LeaveRequestsService {
       }),
     );
 
-    await this.leaveRequestRepository.getEntityManager().persistAndFlush(leaveRequests);
-    await Promise.all(leaveRequests.map((request) => this.notifyHeads(request)));
+    await this.leaveRequestRepository
+      .getEntityManager()
+      .persistAndFlush(leaveRequests);
+
+    this.logger.log(
+      `Created ${leaveRequests.length} leave request(s) for staffId=${staff.id} (${staff.email}) startDate=${dto.startDate} endDate=${dto.endDate}`,
+    );
+    await Promise.all(
+      leaveRequests.map((request) => this.notifyApprovers(request)),
+    );
 
     return {
       totalDays: leaveRequests.length,
@@ -65,16 +81,45 @@ export class LeaveRequestsService {
     };
   }
 
-  async findAll(status?: LeaveRequestStatus): Promise<LeaveRequest[]> {
-    const requests = await this.leaveRequestRepository.find(
-      status ? { status: this.toDbStatus(status) } : {},
-      {
+  async findAll(
+    status?: LeaveRequestStatus,
+    page = 1,
+    limit = 10,
+    staffId?: number,
+  ): Promise<{ data: LeaveRequest[]; meta: PaginationMetaDto }> {
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(100, Math.max(1, limit));
+    const filter: Record<string, unknown> = {};
+    if (status) {
+      filter.status = this.toDbStatus(status);
+    }
+    if (typeof staffId === 'number' && staffId > 0) {
+      filter.staff = staffId;
+    }
+    const offset = (safePage - 1) * safeLimit;
+
+    const [requests, totalItems] = await Promise.all([
+      this.leaveRequestRepository.find(filter, {
+        limit: safeLimit,
+        offset,
         orderBy: { createdAt: 'DESC' },
         populate: ['resolvedByStaff', 'staff'],
-      },
-    );
+      }),
+      this.leaveRequestRepository.count(filter),
+    ]);
 
-    return requests.map((request) => this.toResponse(request));
+    const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / safeLimit);
+    return {
+      data: requests.map((request) => this.toResponse(request)),
+      meta: {
+        page: safePage,
+        limit: safeLimit,
+        totalItems,
+        totalPages,
+        hasNextPage: safePage < totalPages,
+        hasPreviousPage: safePage > 1 && totalPages > 0,
+      },
+    };
   }
 
   async findById(id: number): Promise<LeaveRequest> {
@@ -84,24 +129,31 @@ export class LeaveRequestsService {
   async approve(
     id: number,
     dto: ProcessLeaveRequestDto,
+    resolverStaffId: number,
   ): Promise<LeaveRequest> {
-    return this.process(id, dto, LeaveStatus.APPROVED);
+    return this.process(id, dto, LeaveStatus.APPROVED, resolverStaffId);
   }
 
-  async reject(id: number, dto: ProcessLeaveRequestDto): Promise<LeaveRequest> {
-    return this.process(id, dto, LeaveStatus.REJECTED);
+  async reject(
+    id: number,
+    dto: ProcessLeaveRequestDto,
+    resolverStaffId: number,
+  ): Promise<LeaveRequest> {
+    return this.process(id, dto, LeaveStatus.REJECTED, resolverStaffId);
   }
 
   private async process(
     id: number,
     dto: ProcessLeaveRequestDto,
     status: LeaveStatus,
+    resolverStaffId: number,
   ): Promise<LeaveRequest> {
-    const resolverStaff = await this.staffsService.findEntityById(
-      dto.resolvedByStaffId,
-    );
-    if (resolverStaff.role.name !== 'HEAD') {
-      throw new BadRequestException('Only HEAD can process leave requests');
+    const resolverStaff =
+      await this.staffsService.findEntityById(resolverStaffId);
+    if (!['HEAD', 'MANAGER', 'ADMIN'].includes(resolverStaff.role.name)) {
+      throw new BadRequestException(
+        'Only HEAD, MANAGER, or ADMIN can process leave requests',
+      );
     }
 
     const leaveRequest = await this.findEntityById(id);
@@ -114,8 +166,14 @@ export class LeaveRequestsService {
     leaveRequest.resolvedAt = new Date();
     leaveRequest.rejectReason =
       status === LeaveStatus.REJECTED ? dto.note?.trim() : undefined;
+    if (status === LeaveStatus.APPROVED) {
+      leaveRequest.staff.leaveCredit -= 1;
+    }
 
     await this.leaveRequestRepository.getEntityManager().flush();
+    this.logger.log(
+      `Processed leaveRequestId=${leaveRequest.id} status=${status} resolverStaffId=${resolverStaff.id} staffId=${leaveRequest.staff.id}`,
+    );
     await this.mailService.send({
       to: leaveRequest.staff.email,
       subject: `Leave request ${status}`,
@@ -152,14 +210,92 @@ export class LeaveRequestsService {
     }
   }
 
-  private async notifyHeads(leaveRequest: DbLeaveRequest): Promise<void> {
-    const heads = await this.staffsService.findByRoleName('HEAD');
+  private async notifyApprovers(leaveRequest: DbLeaveRequest): Promise<void> {
+    const [heads, managers] = await Promise.all([
+      this.staffsService.findByRoleName('HEAD'),
+      this.staffsService.findByRoleName('MANAGER'),
+    ]);
+    const recipients = [...heads, ...managers]
+      .map((staff) => staff.email)
+      .filter(Boolean);
+    const uniqueRecipients = Array.from(new Set(recipients));
+
+    this.logger.debug(
+      `Notifying approvers for leaveRequestId=${leaveRequest.id} leaveDate=${leaveRequest.leaveDate} recipients=${uniqueRecipients.join(',') || '(none)'}`,
+    );
+
     await Promise.all(
-      heads.map((head) =>
+      uniqueRecipients.map((email) =>
         this.mailService.send({
-          to: head.email,
-          subject: 'New leave request pending approval',
-          text: `${leaveRequest.staff.fullName} requested leave on ${leaveRequest.leaveDate}.`,
+          to: email,
+          subject: `📌 Leave Request Pending Approval`,
+          text: `A new leave request is waiting for approval.`,
+          html: `
+            <div style="
+              font-family: Arial, sans-serif;
+              background-color: #f4f6f9;
+              padding: 24px;
+            ">
+              <div style="
+                max-width: 600px;
+                margin: auto;
+                background: white;
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+              ">
+                
+                <div style="
+                  background: #2563eb;
+                  color: white;
+                  padding: 20px 24px;
+                ">
+                  <h1 style="
+                    margin: 0;
+                    font-size: 22px;
+                  ">
+                    Leave Request Notification
+                  </h1>
+                </div>
+    
+                <div style="padding: 24px;">
+                  <p style="
+                    font-size: 16px;
+                    color: #374151;
+                    margin-bottom: 16px;
+                  ">
+                    A new leave request is waiting for approval.
+                  </p>
+    
+                  <div style="
+                    background: #f9fafb;
+                    border: 1px solid #e5e7eb;
+                    border-radius: 8px;
+                    padding: 16px;
+                  ">
+                    <p style="margin: 0 0 12px 0;">
+                      <strong>Employee:</strong>
+                      ${leaveRequest.staff.fullName}
+                    </p>
+    
+                    <p style="margin: 0;">
+                      <strong>Leave Date:</strong>
+                      ${leaveRequest.leaveDate}
+                    </p>
+                  </div>
+    
+                  <p style="
+                    margin-top: 24px;
+                    font-size: 14px;
+                    color: #6b7280;
+                  ">
+                    Please review this request in the management system.
+                  </p>
+                </div>
+    
+              </div>
+            </div>
+          `,
         }),
       ),
     );
@@ -174,7 +310,9 @@ export class LeaveRequestsService {
     const start = new Date(`${startDate}T00:00:00.000Z`);
     const end = new Date(`${endDate}T00:00:00.000Z`);
     if (start > end) {
-      throw new BadRequestException('startDate must be before or equal to endDate');
+      throw new BadRequestException(
+        'startDate must be before or equal to endDate',
+      );
     }
 
     const leaveDates: string[] = [];

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 const backendUrl =
   process.env.BACKEND_URL ?? process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:3000";
+const backendApiBase = `${backendUrl}/api`;
 
 interface WrappedApiResponse<T> {
   data?: T;
@@ -17,7 +18,7 @@ export async function GET() {
   }
 
   try {
-    const backendResponse = await fetch(`${backendUrl}/auth/me`, {
+    const backendResponse = await fetch(`${backendApiBase}/auth/me`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -32,6 +33,7 @@ export async function GET() {
       });
 
       response.cookies.delete("access_token");
+      response.cookies.delete("leave_app_access_token");
 
       return response;
     }

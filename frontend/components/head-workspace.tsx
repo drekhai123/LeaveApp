@@ -1,78 +1,90 @@
-"use client";
-
-import { useState } from "react";
-import { formatDate } from "@/lib/formatters";
+import { formatDateTime, leaveStatusLabel } from "@/lib/formatters";
 import { findStaffName } from "@/lib/leave-app-helpers";
+import type { LeaveRequestPaginationMeta } from "@/lib/leave-requests-api";
 import type { LeaveRequestRecord, StaffRecord } from "@/types/leave-app";
 import { EmptyState } from "./empty-state";
+import { RequestTable } from "./request-table";
 import { SectionHeader } from "./section-header";
 
 export function HeadWorkspace({
   head,
-  onApprove,
-  onReject,
+  onRequestsPageChange,
+  onViewRequest,
   requests,
+  requestsMeta,
+  requestsPage,
   staffs,
 }: {
   head: StaffRecord;
-  onApprove: (requestId: number) => Promise<void>;
-  onReject: (requestId: number, rejectReason: string) => Promise<void>;
+  onRequestsPageChange: (nextPage: number) => Promise<void> | void;
+  onViewRequest?: (request: LeaveRequestRecord) => void;
   requests: LeaveRequestRecord[];
+  requestsMeta?: LeaveRequestPaginationMeta;
+  requestsPage: LeaveRequestRecord[];
   staffs: StaffRecord[];
 }) {
-  const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
-  const pendingRequests = requests.filter((request) => request.status === "PENDING");
+  const processedByHead = requests
+    .filter((request) => request.resolvedBy === head.id)
+    .filter((request) => request.status !== "PENDING");
 
   return (
-    <section className="rounded-md border border-slate-200 bg-white p-4">
-      <SectionHeader
-        title="HEAD duyệt đơn"
-        description={`${head.fullName} xử lý đơn đang chờ và tạo thông báo cho Manager.`}
-      />
-      {pendingRequests.length === 0 ? (
-        <EmptyState title="Không có đơn chờ duyệt" description="Đơn mới của STAFF sẽ vào hàng đợi." />
-      ) : (
-        <div className="grid gap-3">
-          {pendingRequests.map((request) => (
-            <div className="rounded-md border border-slate-200 p-3" key={request.id}>
-              <div className="flex flex-wrap justify-between gap-3">
-                <div>
-                  <p className="font-medium text-slate-950">{findStaffName(staffs, request.staffId)}</p>
-                  <p className="text-sm text-slate-600">{formatDate(request.leaveDate)}</p>
-                  <p className="mt-2 text-sm text-slate-700">{request.reason}</p>
+    <div className="grid gap-4 lg:grid-cols-[minmax(280px,420px)_1fr]">
+      <section className="rounded-md border border-slate-200 bg-white p-4">
+        <SectionHeader
+          title="HEAD đã xử lý"
+          description={`${head.fullName} theo dõi đơn đã được duyệt/từ chối.`}
+        />
+        {processedByHead.length === 0 ? (
+          <EmptyState
+            title="Chưa có đơn đã xử lý"
+            description="Các đơn APPROVED/REJECTED bởi bạn sẽ hiển thị tại đây."
+          />
+        ) : (
+          <div className="grid gap-3">
+            {processedByHead.map((request) => (
+              <div className="rounded-md border border-slate-200 p-3" key={request.id}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-slate-950">Đơn #{request.id}</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Trạng thái: {leaveStatusLabel(request.status)}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Xử lý: {formatDateTime(request.resolvedAt)}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-700">
+                      Nhân viên: {findStaffName(staffs, request.staffId)}
+                    </p>
+                    {request.status === "REJECTED" && request.rejectReason ? (
+                      <p className="mt-2 text-sm text-rose-700">Lý do từ chối: {request.rejectReason}</p>
+                    ) : null}
+                  </div>
+                  <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700">
+                    {request.status}
+                  </span>
                 </div>
-                <button
-                  className="h-9 rounded-md bg-emerald-700 px-3 text-sm font-medium text-white"
-                  onClick={() => void onApprove(request.id)}
-                  type="button"
-                >
-                  Duyệt
-                </button>
               </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-                <input
-                  className="rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky-500"
-                  onChange={(event) =>
-                    setRejectReasons((current) => ({
-                      ...current,
-                      [request.id]: event.target.value,
-                    }))
-                  }
-                  placeholder="Lý do từ chối"
-                  value={rejectReasons[request.id] ?? ""}
-                />
-                <button
-                  className="rounded-md border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50"
-                  onClick={() => void onReject(request.id, rejectReasons[request.id] ?? "")}
-                  type="button"
-                >
-                  Từ chối
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
+            ))}
+          </div>
+        )}
+      </section>
+      <RequestTable
+        calendarRequests={requests}
+        onRequestClick={onViewRequest}
+        pagination={
+          requestsMeta
+            ? {
+                page: requestsMeta.page,
+                pageSize: requestsMeta.limit,
+                total: requestsMeta.totalItems,
+                onPageChange: onRequestsPageChange,
+              }
+            : undefined
+        }
+        requests={requestsPage}
+        staffs={staffs}
+        title="Tất cả đơn nghỉ phép"
+      />
+    </div>
   );
 }

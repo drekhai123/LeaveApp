@@ -1,19 +1,28 @@
 "use client";
 
 import { useState } from "react";
+import type { LeaveRequestPaginationMeta } from "@/lib/leave-requests-api";
 import type { LeaveRequestRecord, StaffRecord } from "@/types/leave-app";
 import { InlineAlert } from "./inline-alert";
-import { MockRequestTable } from "./mock-request-table";
+import { RequestTable } from "./request-table";
 import { SectionHeader } from "./section-header";
 
 export function StaffWorkspace({
+  onRequestsPageChange,
   onSubmit,
+  onViewRequest,
   requests,
+  requestsMeta,
+  requestsPage,
   staff,
   staffs,
 }: {
+  onRequestsPageChange: (nextPage: number) => Promise<void> | void;
   onSubmit: (staffId: number, leaveDate: string, reason: string) => Promise<void>;
+  onViewRequest?: (request: LeaveRequestRecord) => void;
   requests: LeaveRequestRecord[];
+  requestsMeta?: LeaveRequestPaginationMeta;
+  requestsPage: LeaveRequestRecord[];
   staff: StaffRecord;
   staffs: StaffRecord[];
 }) {
@@ -65,6 +74,7 @@ export function StaffWorkspace({
             Ngày nghỉ
             <input
               className={inputClassName}
+              lang="en-GB"
               onChange={(event) => setLeaveDate(event.target.value)}
               type="date"
               value={leaveDate}
@@ -90,8 +100,20 @@ export function StaffWorkspace({
         ) : null}
       </section>
 
-      <MockRequestTable
-        requests={requests.filter((request) => request.staffId === staff.id)}
+      <RequestTable
+        calendarRequests={requests}
+        onRequestClick={onViewRequest}
+        pagination={
+          requestsMeta
+            ? {
+                page: requestsMeta.page,
+                pageSize: requestsMeta.limit,
+                total: requestsMeta.totalItems,
+                onPageChange: onRequestsPageChange,
+              }
+            : undefined
+        }
+        requests={requestsPage}
         staffs={staffs}
         title={`Đơn của ${staff.fullName}`}
       />
