@@ -1,5 +1,6 @@
 "use client";
 
+<<<<<<< HEAD
 import { useCallback, useMemo, useState } from "react";
 import {
   approveLeaveRequest,
@@ -15,18 +16,28 @@ import {
   fetchAllStaffs,
   fetchStaffsPage,
 } from "@/lib/staff-api";
+=======
+import { useEffect, useState } from "react";
+import { getCurrentStaff, logoutCurrentStaff } from "@/lib/auth-api";
+import {
+  findRoleName,
+  mockLeaveRequests,
+  mockStaffs,
+} from "@/lib/mock-leave-management-data";
+>>>>>>> e83db78b535da6bf2213ca0e3f32afb1dcababf1
 import type {
   LeaveRequestRecord,
   StaffRecord,
+  StaffRoleName,
 } from "@/types/leave-app";
 import { AdminMockWorkspace } from "./admin-mock-workspace";
 import { HeadWorkspace } from "./head-workspace";
 import { LoginScreen } from "./login-screen";
-import { ManagerWorkspace } from "./manager-workspace";
 import { MockMetrics } from "./mock-metrics";
 import { StaffWorkspace } from "./staff-workspace";
 
 export function LeaveDashboard() {
+<<<<<<< HEAD
   const [requests, setRequests] = useState<LeaveRequestRecord[]>([]);
   const [staffs, setStaffs] = useState<StaffRecord[]>([]);
   const [adminStaffs, setAdminStaffs] = useState<StaffRecord[]>([]);
@@ -75,6 +86,45 @@ export function LeaveDashboard() {
     },
     [adminStaffPageSize],
   );
+=======
+  const [requests, setRequests] = useState<LeaveRequestRecord[]>(mockLeaveRequests);
+  const [staffs, setStaffs] = useState<StaffRecord[]>(mockStaffs);
+  const [currentUser, setCurrentUser] = useState<StaffRecord>();
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+
+  const currentRole = currentUser ? findRoleName(currentUser) : undefined;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getCurrentStaff()
+      .then((staff) => {
+        if (!isMounted || !staff) {
+          return;
+        }
+
+        handleLogin(staff);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (isMounted) {
+          setIsCheckingSession(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  if (isCheckingSession) {
+    return (
+      <div className="rounded-md border border-slate-200 bg-white p-5 text-sm text-slate-600">
+        Dang kiem tra phien dang nhap...
+      </div>
+    );
+  }
+>>>>>>> e83db78b535da6bf2213ca0e3f32afb1dcababf1
 
   if (!currentUser || !currentRole) {
     return <LoginScreen onLogin={handleLogin} />;
@@ -85,9 +135,20 @@ export function LeaveDashboard() {
     setRequests((current) => [...createdRequests, ...current]);
   }
 
+<<<<<<< HEAD
   async function handleApprove(requestId: number) {
     const request = await approveLeaveRequest(requestId);
     updateRequest(request);
+=======
+  function handleApprove(requestId: number, headId: number) {
+    const request = findPendingRequest(requests, requestId);
+    if (!request) {
+      return;
+    }
+
+    resolveRequest(requestId, headId, "APPROVED");
+    decreaseLeaveCredit(requestId);
+>>>>>>> e83db78b535da6bf2213ca0e3f32afb1dcababf1
   }
 
   async function handleReject(requestId: number, rejectReason: string) {
@@ -99,6 +160,7 @@ export function LeaveDashboard() {
     updateRequest(request);
   }
 
+<<<<<<< HEAD
   async function handleCreateStaff(input: {
     fullName: string;
     email: string;
@@ -120,6 +182,9 @@ export function LeaveDashboard() {
       const targetPage = adminStaffPage;
       await reloadAdminStaffPage(targetPage);
     }
+=======
+    resolveRequest(requestId, headId, "REJECTED", rejectReason.trim());
+>>>>>>> e83db78b535da6bf2213ca0e3f32afb1dcababf1
   }
 
   return (
@@ -172,14 +237,22 @@ export function LeaveDashboard() {
         />
       ) : null}
       {currentRole === "MANAGER" ? (
+<<<<<<< HEAD
         <ManagerWorkspace
           manager={currentUser}
           requests={requests}
           staffs={staffs}
+=======
+        <AdminMockWorkspace
+          requests={requests}
+          staffs={staffs}
+          title="Manager quan ly he thong"
+>>>>>>> e83db78b535da6bf2213ca0e3f32afb1dcababf1
         />
       ) : null}
       {currentRole === "ADMIN" ? (
         <AdminMockWorkspace
+<<<<<<< HEAD
           onCreateStaff={handleCreateStaff}
           onDeleteStaff={handleDeleteStaff}
           onPageChange={(nextPage) => reloadAdminStaffPage(nextPage)}
@@ -187,6 +260,13 @@ export function LeaveDashboard() {
           requests={requests}
           staffs={staffs}
           staffsPage={adminStaffs}
+=======
+          canCreateUser
+          onCreateStaff={handleCreateStaff}
+          requests={requests}
+          staffs={staffs}
+          title="Admin quan ly he thong"
+>>>>>>> e83db78b535da6bf2213ca0e3f32afb1dcababf1
         />
       ) : null}
     </div>
@@ -206,6 +286,7 @@ export function LeaveDashboard() {
   }
 
   function handleLogout() {
+<<<<<<< HEAD
     clearAccessToken();
     setStaffs([]);
     setRequests([]);
@@ -213,6 +294,43 @@ export function LeaveDashboard() {
   }
 
   function updateRequest(nextRequest: LeaveRequestRecord) {
+=======
+    void logoutCurrentStaff();
+    setCurrentUser(undefined);
+  }
+
+  function handleCreateStaff(staff: {
+    email: string;
+    fullName: string;
+    leaveCredit: number;
+    roleName: StaffRoleName;
+  }) {
+    const now = new Date().toISOString();
+    const nextId = Math.max(...staffs.map((item) => item.id)) + 1;
+
+    setStaffs((current) => [
+      {
+        id: nextId,
+        createdAt: now,
+        email: staff.email,
+        fullName: staff.fullName,
+        leaveCredit: staff.leaveCredit,
+        roleId: roleNameToId(staff.roleName),
+        updatedAt: now,
+      },
+      ...current,
+    ]);
+  }
+
+  function resolveRequest(
+    requestId: number,
+    headId: number,
+    status: LeaveRequestRecord["status"],
+    rejectReason?: string,
+  ) {
+    const now = new Date().toISOString();
+
+>>>>>>> e83db78b535da6bf2213ca0e3f32afb1dcababf1
     setRequests((current) =>
       current.map((request) =>
         request.id === nextRequest.id
@@ -225,8 +343,32 @@ export function LeaveDashboard() {
     );
   }
 
+<<<<<<< HEAD
+=======
+  function decreaseLeaveCredit(requestId: number) {
+    const request = requests.find((item) => item.id === requestId);
+    if (!request) {
+      return;
+    }
+
+    setStaffs((current) =>
+      current.map((item) =>
+        item.id === request.staffId
+          ? { ...item, leaveCredit: Math.max(0, item.leaveCredit - 1) }
+          : item,
+      ),
+    );
+  }
+>>>>>>> e83db78b535da6bf2213ca0e3f32afb1dcababf1
 }
 
-function findByRole(staffs: StaffRecord[], roleName: ReturnType<typeof findRoleName>) {
-  return staffs.find((staff) => findRoleName(staff) === roleName) ?? staffs[0];
+function roleNameToId(roleName: StaffRoleName): number {
+  const roleIds: Record<StaffRoleName, number> = {
+    ADMIN: 4,
+    HEAD: 3,
+    MANAGER: 2,
+    STAFF: 1,
+  };
+
+  return roleIds[roleName];
 }

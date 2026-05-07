@@ -27,9 +27,14 @@ export function LoginScreen({
 
     setIsSubmitting(true);
     try {
+<<<<<<< HEAD
       const session = await loginWithEmailPassword(email.trim(), password);
       saveAccessToken(session.accessToken);
       onLogin(session.staff);
+=======
+      const staff = await loginWithEmailPassword(email.trim(), password);
+      onLogin(staff);
+>>>>>>> e83db78b535da6bf2213ca0e3f32afb1dcababf1
     } catch (error) {
       setMessage(
         error instanceof Error
