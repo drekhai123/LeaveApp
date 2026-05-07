@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { formatDate } from "@/lib/formatters";
-import { findStaffName } from "@/lib/mock-leave-management-data";
+import { findStaffName } from "@/lib/leave-app-helpers";
 import type { LeaveRequestRecord, StaffRecord } from "@/types/leave-app";
 import { EmptyState } from "./empty-state";
 import { SectionHeader } from "./section-header";
@@ -12,11 +12,13 @@ export function HeadWorkspace({
   onApprove,
   onReject,
   requests,
+  staffs,
 }: {
   head: StaffRecord;
-  onApprove: (requestId: number, headId: number) => void;
-  onReject: (requestId: number, headId: number, rejectReason: string) => void;
+  onApprove: (requestId: number) => Promise<void>;
+  onReject: (requestId: number, rejectReason: string) => Promise<void>;
   requests: LeaveRequestRecord[];
+  staffs: StaffRecord[];
 }) {
   const [rejectReasons, setRejectReasons] = useState<Record<number, string>>({});
   const pendingRequests = requests.filter((request) => request.status === "PENDING");
@@ -35,13 +37,13 @@ export function HeadWorkspace({
             <div className="rounded-md border border-slate-200 p-3" key={request.id}>
               <div className="flex flex-wrap justify-between gap-3">
                 <div>
-                  <p className="font-medium text-slate-950">{findStaffName(request.staffId)}</p>
+                  <p className="font-medium text-slate-950">{findStaffName(staffs, request.staffId)}</p>
                   <p className="text-sm text-slate-600">{formatDate(request.leaveDate)}</p>
                   <p className="mt-2 text-sm text-slate-700">{request.reason}</p>
                 </div>
                 <button
                   className="h-9 rounded-md bg-emerald-700 px-3 text-sm font-medium text-white"
-                  onClick={() => onApprove(request.id, head.id)}
+                  onClick={() => void onApprove(request.id)}
                   type="button"
                 >
                   Duyệt
@@ -61,7 +63,7 @@ export function HeadWorkspace({
                 />
                 <button
                   className="rounded-md border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50"
-                  onClick={() => onReject(request.id, head.id, rejectReasons[request.id] ?? "")}
+                  onClick={() => void onReject(request.id, rejectReasons[request.id] ?? "")}
                   type="button"
                 >
                   Từ chối

@@ -10,16 +10,18 @@ export function StaffWorkspace({
   onSubmit,
   requests,
   staff,
+  staffs,
 }: {
-  onSubmit: (staffId: number, leaveDate: string, reason: string) => void;
+  onSubmit: (staffId: number, leaveDate: string, reason: string) => Promise<void>;
   requests: LeaveRequestRecord[];
   staff: StaffRecord;
+  staffs: StaffRecord[];
 }) {
   const [leaveDate, setLeaveDate] = useState("");
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState<string>();
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(undefined);
 
@@ -36,10 +38,14 @@ export function StaffWorkspace({
       return;
     }
 
-    onSubmit(staff.id, leaveDate, reason.trim());
-    setLeaveDate("");
-    setReason("");
-    setMessage("Đã gửi đơn cho HEAD duyệt.");
+    try {
+      await onSubmit(staff.id, leaveDate, reason.trim());
+      setLeaveDate("");
+      setReason("");
+      setMessage("Đã gửi đơn cho HEAD duyệt.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Gửi đơn thất bại.");
+    }
   }
 
   return (
@@ -47,7 +53,7 @@ export function StaffWorkspace({
       <section className="rounded-md border border-slate-200 bg-white p-4">
         <SectionHeader
           title="Staff gửi đơn"
-          description="Giao diện mô phỏng theo bảng staffs và leave_requests."
+          description="Giao diện theo dữ liệu backend (staffs và leave_requests)."
         />
         <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
           <p className="font-medium text-slate-950">{staff.fullName}</p>
@@ -86,6 +92,7 @@ export function StaffWorkspace({
 
       <MockRequestTable
         requests={requests.filter((request) => request.staffId === staff.id)}
+        staffs={staffs}
         title={`Đơn của ${staff.fullName}`}
       />
     </div>

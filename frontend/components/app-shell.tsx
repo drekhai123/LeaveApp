@@ -8,14 +8,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-slate-500">
-                Giao diện mô phỏng quản lý nghỉ phép
+                Giao diện quản lý nghỉ phép
               </p>
               <h1 className="text-2xl font-semibold tracking-normal text-slate-950">
                 LeaveManagement
               </h1>
             </div>
             <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              Chế độ mô phỏng: dữ liệu render trực tiếp trên frontend, chưa cần backend.
+              Chế độ tích hợp API: dữ liệu được đồng bộ từ backend.
             </p>
           </div>
         </div>

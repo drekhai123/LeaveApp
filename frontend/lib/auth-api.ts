@@ -1,4 +1,6 @@
 import type { StaffRecord, StaffRoleName } from "@/types/leave-app";
+import { readApiErrorMessage, unwrapApiResponse as unwrapApiPayload } from "./api-response";
+import { roleNameToId as mapRoleNameToId } from "./leave-app-mappers";
 
 interface LoginResponse {
   accessToken: string;
@@ -9,11 +11,6 @@ interface LoginResponse {
     leaveCredit: number;
     role: StaffRoleName;
   };
-}
-
-interface WrappedApiResponse<T> {
-  data?: T;
-  message?: string | string[];
 }
 
 export async function loginWithEmailPassword(
@@ -31,7 +28,7 @@ export async function loginWithEmailPassword(
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(readErrorMessage(payload, response.status));
+    throw new Error(readApiErrorMessage(payload, response.status));
   }
 
   return mapLoginResponse(readLoginPayload(payload));
@@ -48,33 +45,20 @@ function mapLoginResponse(payload: LoginResponse) {
       fullName: payload.staff.fullName,
       id: payload.staff.id,
       leaveCredit: payload.staff.leaveCredit,
-      roleId: roleNameToId(payload.staff.role),
+      roleId: mapRoleNameToId(payload.staff.role),
       updatedAt: now,
     },
   };
 }
 
 function readLoginPayload(payload: unknown): LoginResponse {
-  const candidate = unwrapApiResponse(payload);
+  const candidate = unwrapApiPayload(payload);
 
   if (!isLoginResponse(candidate)) {
     throw new Error("Phan hoi dang nhap tu backend khong dung dinh dang.");
   }
 
   return candidate;
-}
-
-function unwrapApiResponse(payload: unknown): unknown {
-  if (
-    payload &&
-    typeof payload === "object" &&
-    "data" in payload &&
-    (payload as WrappedApiResponse<unknown>).data
-  ) {
-    return (payload as WrappedApiResponse<unknown>).data;
-  }
-
-  return payload;
 }
 
 function isLoginResponse(payload: unknown): payload is LoginResponse {
@@ -95,33 +79,3 @@ function isLoginResponse(payload: unknown): payload is LoginResponse {
   );
 }
 
-function roleNameToId(roleName: StaffRoleName): number {
-  const roleIds: Record<StaffRoleName, number> = {
-    ADMIN: 4,
-    HEAD: 3,
-    MANAGER: 2,
-    STAFF: 1,
-  };
-
-  return roleIds[roleName];
-}
-
-function readErrorMessage(payload: unknown, status: number): string {
-  const candidate = unwrapApiResponse(payload);
-
-  if (
-    candidate &&
-    typeof candidate === "object" &&
-    "message" in candidate
-  ) {
-    const message = (candidate as WrappedApiResponse<unknown>).message;
-
-    if (status === 401) {
-      return "Email hoac mat khau khong dung.";
-    }
-
-    return Array.isArray(message) ? message.join(", ") : String(message);
-  }
-
-  return "Dang nhap that bai. Vui long thu lai.";
-}

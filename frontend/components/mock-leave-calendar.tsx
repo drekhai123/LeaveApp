@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { formatDate, formatMonth, leaveStatusLabel } from "@/lib/formatters";
-import { findStaffName } from "@/lib/mock-leave-management-data";
-import type { LeaveRequestRecord } from "@/types/leave-app";
+import { findStaffName } from "@/lib/leave-app-helpers";
+import type { LeaveRequestRecord, StaffRecord } from "@/types/leave-app";
 import { EmptyState } from "./empty-state";
 
 const weekDays = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
@@ -14,7 +14,13 @@ const statusDotClasses: Record<LeaveRequestRecord["status"], string> = {
   REJECTED: "bg-rose-500",
 };
 
-export function MockLeaveCalendar({ requests }: { requests: LeaveRequestRecord[] }) {
+export function MockLeaveCalendar({
+  requests,
+  staffs,
+}: {
+  requests: LeaveRequestRecord[];
+  staffs: StaffRecord[];
+}) {
   const firstRequestDate = requests[0]?.leaveDate ?? new Date().toISOString();
   const initialMonth = toMonthStart(firstRequestDate);
   const [visibleMonth, setVisibleMonth] = useState(initialMonth);
@@ -108,7 +114,7 @@ export function MockLeaveCalendar({ requests }: { requests: LeaveRequestRecord[]
             {selectedRequests.map((request) => (
               <div className="rounded-md bg-white p-3 text-sm" key={request.id}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-medium text-slate-950">{findStaffName(request.staffId)}</p>
+                  <p className="font-medium text-slate-950">{findStaffName(staffs, request.staffId)}</p>
                   <span className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700">
                     {leaveStatusLabel(request.status)}
                   </span>

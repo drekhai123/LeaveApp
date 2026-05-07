@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { loginWithEmailPassword } from "@/lib/auth-api";
+import { saveAccessToken } from "@/lib/session";
 import type { StaffRecord } from "@/types/leave-app";
 import { InlineAlert } from "./inline-alert";
 
@@ -27,7 +28,7 @@ export function LoginScreen({
     setIsSubmitting(true);
     try {
       const session = await loginWithEmailPassword(email.trim(), password);
-      localStorage.setItem("leave_app_access_token", session.accessToken);
+      saveAccessToken(session.accessToken);
       onLogin(session.staff);
     } catch (error) {
       setMessage(
