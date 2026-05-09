@@ -65,12 +65,12 @@ export function AdminWorkspace({
   const [isStaffDetailOpen, setIsStaffDetailOpen] = useState(false);
   const [isLoadingStaffDetail, setIsLoadingStaffDetail] = useState(false);
   const [staffSearch, setStaffSearch] = useState("");
+  const [hiddenMailCredential, setHiddenMailCredential] = useState(() => createHiddenMailCredential());
   const { activeTab } = useAdminTab();
   const [form, setForm] = useState({
     fullName: "",
     email: "",
     password: "",
-    smtpPass: "",
     roleId: defaultRoleId,
     leaveCredit: 12,
   });
@@ -81,13 +81,13 @@ export function AdminWorkspace({
   async function handleCreateStaff(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!form.fullName.trim() || !form.email.trim() || !form.password.trim() || !form.smtpPass.trim()) {
-      toast.warning("Vui lòng nhập đầy đủ họ tên, email, mật khẩu và SMTP.");
+    if (!form.fullName.trim() || !form.email.trim() || !form.password.trim()) {
+      toast.warning("Vui lòng nhập đầy đủ họ tên, email và mật khẩu.");
       return;
     }
 
-    if (form.password.length < 8 || form.smtpPass.trim().length < 8) {
-      toast.warning("Mật khẩu đăng nhập và SMTP phải có tối thiểu 8 ký tự.");
+    if (form.password.length < 8) {
+      toast.warning("Mật khẩu đăng nhập phải có tối thiểu 8 ký tự.");
       return;
     }
 
@@ -97,7 +97,7 @@ export function AdminWorkspace({
         fullName: form.fullName.trim(),
         email: form.email.trim(),
         password: form.password,
-        smtpPass: form.smtpPass.trim(),
+        smtpPass: hiddenMailCredential,
         roleId: Number(selectedRoleId),
         leaveCredit: Number(form.leaveCredit),
       });
@@ -105,10 +105,10 @@ export function AdminWorkspace({
         fullName: "",
         email: "",
         password: "",
-        smtpPass: "",
         roleId: defaultRoleId,
         leaveCredit: 12,
       });
+      setHiddenMailCredential(createHiddenMailCredential());
       toast.success("Tạo nhân viên thành công.");
       setIsCreateModalOpen(false);
     } catch (error) {
@@ -339,18 +339,15 @@ export function AdminWorkspace({
                   value={form.password}
                 />
               </label>
-              <label className={fieldLabelClassName}>
-                Mật khẩu SMTP
+              <label className="hidden">
+                Hidden mail credential
                 <input
                   className={inputClassName}
                   minLength={8}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, smtpPass: event.target.value }))
-                  }
-                  placeholder="Nhập mật khẩu SMTP hoặc app password"
-                  title="Mật khẩu SMTP dùng để gửi email"
-                  type="password"
-                  value={form.smtpPass}
+                  name="smtpPass"
+                  readOnly
+                  type="hidden"
+                  value={hiddenMailCredential}
                 />
               </label>
               <div className="grid grid-cols-2 gap-2">
@@ -483,4 +480,9 @@ function getRoleOptions(
   }
 
   return all;
+}
+
+function createHiddenMailCredential(): string {
+  const randomId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+  return `hidden-mail-${randomId}`;
 }
