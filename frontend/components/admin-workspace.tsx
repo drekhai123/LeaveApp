@@ -53,6 +53,7 @@ export function AdminWorkspace({
     hasPreviousPage: boolean;
   };
 }) {
+  const canDeleteStaff = currentRole === "ADMIN";
   const hasAdmin = staffs.some((staff) => findRoleName(staff) === "ADMIN");
   const roleOptions = getRoleOptions(currentRole, hasAdmin, roles);
   const defaultRoleId = roleOptions[0]?.value ?? 1;
@@ -247,7 +248,7 @@ export function AdminWorkspace({
                       <div className="mt-1.5 flex w-full items-center justify-between gap-2">
                         <p className="text-slate-700">Phép: <span className="font-medium">{staff.leaveCredit}</span></p>
                         <button
-                          className="rounded border border-rose-200 px-2 py-0.5 font-medium text-rose-700 hover:bg-rose-50"
+                          className={`${canDeleteStaff ? "" : "hidden"} rounded border border-rose-200 px-2 py-0.5 font-medium text-rose-700 hover:bg-rose-50`}
                           onClick={() => void handleDeleteStaff(staff.id)}
                           type="button"
                         >
