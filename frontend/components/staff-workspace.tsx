@@ -41,6 +41,52 @@ export function StaffWorkspace({
   const isSubmittingRef = useRef(false);
   const todayDateKey = getTodayDateKey();
 
+  const isSaturday = (dateStr: string): boolean => {
+    if (!dateStr) return false;
+    const parts = dateStr.split("-");
+    if (parts.length !== 3) return false;
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const date = new Date(year, month, day);
+    return date.getDay() === 6;
+  };
+
+  const isShiftAlreadyStartedForOption = (optionValue: string, dateStr: string): boolean => {
+    if (dateStr !== todayDateKey) return false;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const morningShiftStart = 8 * 60 + 30; // 8:30 AM = 510 minutes
+    const afternoonShiftStart = 13 * 60 + 30; // 1:30 PM = 810 minutes
+
+    if (optionValue === "FULL" || optionValue === "MORNING") {
+      return currentMinutes >= morningShiftStart;
+    }
+    if (optionValue === "AFTERNOON") {
+      return currentMinutes >= afternoonShiftStart;
+    }
+    return false;
+  };
+
+  const handleDateChange = (dateVal: string) => {
+    setLeaveDate(dateVal);
+    if (isSaturday(dateVal)) {
+      setTypeLeave("MORNING");
+    } else if (dateVal === todayDateKey) {
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const morningShiftStart = 8 * 60 + 30;
+      const afternoonShiftStart = 13 * 60 + 30;
+
+      if (currentMinutes >= afternoonShiftStart) {
+        toast.warning("Tất cả các ca làm việc của ngày hôm nay đều đã bắt đầu.");
+      } else if (currentMinutes >= morningShiftStart) {
+        toast.warning("Ca sáng đã bắt đầu. Bạn chỉ có thể chọn ca chiều.");
+        setTypeLeave("AFTERNOON");
+      }
+    }
+  };
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -55,6 +101,21 @@ export function StaffWorkspace({
     if (leaveDate < todayDateKey) {
       toast.warning("Chỉ được chọn ngày nghỉ từ hôm nay trở đi.");
       return;
+    }
+    if (leaveDate === todayDateKey) {
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const morningShiftStart = 8 * 60 + 30;
+      const afternoonShiftStart = 13 * 60 + 30;
+
+      if ((typeLeave === "FULL" || typeLeave === "MORNING") && currentMinutes >= morningShiftStart) {
+        toast.warning("Không thể xin nghỉ phép ca sáng / cả ngày vì ca sáng đã bắt đầu (8:30 AM).");
+        return;
+      }
+      if (typeLeave === "AFTERNOON" && currentMinutes >= afternoonShiftStart) {
+        toast.warning("Không thể xin nghỉ phép ca chiều vì ca chiều đã bắt đầu (1:30 PM).");
+        return;
+      }
     }
     if (staff.leaveCredit < leaveSessionCreditCost(typeLeave)) {
       toast.warning("Nhân viên không đủ ngày phép cho lựa chọn này.");
@@ -126,7 +187,7 @@ export function StaffWorkspace({
                 lang="vi-VN"
                 min={todayDateKey}
                 disabled={isSubmitting}
-                onChange={(event) => setLeaveDate(event.target.value)}
+                onChange={(event) => handleDateChange(event.target.value)}
                 type="date"
                 value={leaveDate}
               />
@@ -147,22 +208,28 @@ export function StaffWorkspace({
             <div className="grid grid-cols-3 gap-2">
               {leaveSessionOptions.map((option) => {
                 const isSelected = typeLeave === option.value;
+                const isDisabledOption =
+                  isSubmitting ||
+                  (isSaturday(leaveDate) && option.value !== "MORNING") ||
+                  isShiftAlreadyStartedForOption(option.value, leaveDate);
                 return (
                   <button
                     key={option.value}
                     type="button"
-                    disabled={isSubmitting}
+                    disabled={isDisabledOption}
                     onClick={() => setTypeLeave(option.value)}
                     className={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition-all duration-150 cursor-pointer disabled:cursor-not-allowed active:scale-[0.97]
                       ${isSelected
                         ? "border-slate-900 bg-slate-900 text-white shadow-sm font-medium"
-                        : "border-slate-200 bg-slate-50/40 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                        : isDisabledOption
+                          ? "border-slate-100 bg-slate-100/30 text-slate-300 border-slate-200/50"
+                          : "border-slate-200 bg-slate-50/40 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                       }
                     `}
                   >
                     <span className="text-xs font-semibold">{option.label}</span>
                     <span
-                      className={`text-xs mt-0.5 font-mono ${isSelected ? "text-slate-300" : "text-slate-500 font-medium"
+                      className={`text-xs mt-0.5 font-mono ${isSelected ? "text-slate-300" : isDisabledOption ? "text-slate-200" : "text-slate-500 font-medium"
                         }`}
                     >
                       {option.creditCost} ngày
@@ -171,6 +238,7 @@ export function StaffWorkspace({
                 );
               })}
             </div>
+
           </div>
 
           {/* Reason Input */}
@@ -246,7 +314,7 @@ export function StaffWorkspace({
       <RequestTable
         calendarRequests={requests}
         minSelectableDate={todayDateKey}
-        onDateSelect={setLeaveDate}
+        onDateSelect={handleDateChange}
         onRequestClick={onViewRequest}
         pagination={
           requestsMeta
