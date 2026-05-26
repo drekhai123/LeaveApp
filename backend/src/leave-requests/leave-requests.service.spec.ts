@@ -102,10 +102,12 @@ describe('LeaveRequestsService', () => {
     };
 
     leaveRequestsService = new LeaveRequestsService(
-      leaveRequestRepository as EntityRepository<DbLeaveRequest>,
+      leaveRequestRepository as unknown as EntityRepository<DbLeaveRequest>,
       staffsService as StaffsService,
       mailService as MailService,
     );
+
+    jest.spyOn(leaveRequestsService as any, 'getNow').mockReturnValue(new Date('2026-05-01T00:00:00Z'));
   });
 
   it('creates a pending leave request for one date', async () => {
@@ -291,6 +293,111 @@ describe('LeaveRequestsService', () => {
         smtpPass: 'smtp-pass-3',
       }),
     );
+  });
+
+  describe('Shift starting time validation', () => {
+    it('blocks leave requests for a date in the past', async () => {
+      jest.spyOn(leaveRequestsService as any, 'getNow').mockReturnValue(new Date('2026-05-15T09:00:00Z'));
+
+      await expect(
+        leaveRequestsService.create({
+          leaveDate: '2026-05-14',
+          reason: 'Sick leave',
+          staffId: 1,
+          type: TypeLeave.FULL,
+        }),
+      ).rejects.toThrow(
+        new BadRequestException('Cannot create leave request because the shift has already started'),
+      );
+    });
+
+    it('allows leave requests for a date in the future', async () => {
+      jest.spyOn(leaveRequestsService as any, 'getNow').mockReturnValue(new Date('2026-05-15T09:00:00Z'));
+
+      const created = await leaveRequestsService.create({
+        leaveDate: '2026-05-18',
+        reason: 'Future planning',
+        staffId: 1,
+        type: TypeLeave.FULL,
+      });
+
+      expect(created.requests[0].status).toBe('pending');
+    });
+
+    it('handles today morning leave requests correctly based on 8:30 AM shift start', async () => {
+      jest.spyOn(leaveRequestsService as any, 'getNow').mockReturnValue(new Date('2026-05-15T01:15:00Z'));
+      const allowed = await leaveRequestsService.create({
+        leaveDate: '2026-05-15',
+        reason: 'Morning appointment',
+        staffId: 1,
+        type: TypeLeave.MORNING,
+      });
+      expect(allowed.requests[0].status).toBe('pending');
+
+      dbRequests = [];
+
+      jest.spyOn(leaveRequestsService as any, 'getNow').mockReturnValue(new Date('2026-05-15T01:30:00Z'));
+      await expect(
+        leaveRequestsService.create({
+          leaveDate: '2026-05-15',
+          reason: 'Morning appointment',
+          staffId: 1,
+          type: TypeLeave.MORNING,
+        }),
+      ).rejects.toThrow(
+        new BadRequestException('Cannot create leave request because the shift has already started'),
+      );
+    });
+
+    it('handles today afternoon leave requests correctly based on 1:30 PM shift start', async () => {
+      jest.spyOn(leaveRequestsService as any, 'getNow').mockReturnValue(new Date('2026-05-15T06:15:00Z'));
+      const allowed = await leaveRequestsService.create({
+        leaveDate: '2026-05-15',
+        reason: 'Afternoon event',
+        staffId: 1,
+        type: TypeLeave.AFTERNOON,
+      });
+      expect(allowed.requests[0].status).toBe('pending');
+
+      dbRequests = [];
+
+      jest.spyOn(leaveRequestsService as any, 'getNow').mockReturnValue(new Date('2026-05-15T06:35:00Z'));
+      await expect(
+        leaveRequestsService.create({
+          leaveDate: '2026-05-15',
+          reason: 'Afternoon event',
+          staffId: 1,
+          type: TypeLeave.AFTERNOON,
+        }),
+      ).rejects.toThrow(
+        new BadRequestException('Cannot create leave request because the shift has already started'),
+      );
+    });
+
+    it('handles today full day leave requests correctly based on 8:30 AM shift start', async () => {
+      jest.spyOn(leaveRequestsService as any, 'getNow').mockReturnValue(new Date('2026-05-15T01:00:00Z'));
+      const allowed = await leaveRequestsService.create({
+        leaveDate: '2026-05-15',
+        reason: 'Full day trip',
+        staffId: 1,
+        type: TypeLeave.FULL,
+      });
+      expect(allowed.requests[0].status).toBe('pending');
+
+      dbRequests = [];
+
+      jest.spyOn(leaveRequestsService as any, 'getNow').mockReturnValue(new Date('2026-05-15T01:30:00Z'));
+      await expect(
+        leaveRequestsService.create({
+          leaveDate: '2026-05-15',
+          reason: 'Full day trip',
+          staffId: 1,
+          type: TypeLeave.FULL,
+        }),
+      ).rejects.toThrow(
+        new BadRequestException('Cannot create leave request because the shift has already started'),
+      );
+    });
   });
 });
 

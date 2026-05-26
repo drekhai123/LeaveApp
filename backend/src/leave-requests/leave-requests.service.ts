@@ -30,7 +30,7 @@ export class LeaveRequestsService {
     private readonly leaveRequestRepository: EntityRepository<DbLeaveRequest>,
     private readonly staffsService: StaffsService,
     private readonly mailService: MailService,
-  ) {}
+  ) { }
 
   async create(
     dto: CreateLeaveRequestDto,
@@ -43,8 +43,13 @@ export class LeaveRequestsService {
     if (!this.isValidDate(dto.leaveDate)) {
       throw new BadRequestException('Leave date is invalid');
     }
-    if (this.isWeekendDate(dto.leaveDate)) {
+    if (this.isWeekendDate(dto.leaveDate, dto.type)) {
       throw new BadRequestException('Leave date must be a business day');
+    }
+    if (this.isShiftAlreadyStarted(dto.leaveDate, dto.type ?? TypeLeave.FULL)) {
+      throw new BadRequestException(
+        'Cannot create leave request because the shift has already started',
+      );
     }
 
     await this.ensureNoDuplicateRequest(staff.id, dto.leaveDate);
@@ -164,7 +169,7 @@ export class LeaveRequestsService {
     if (status === LeaveStatus.APPROVED) {
       leaveRequest.staff.leaveCredit = Number(
         Number(leaveRequest.staff.leaveCredit) -
-          this.getTypeWeight(leaveRequest.type),
+        this.getTypeWeight(leaveRequest.type),
       );
     }
 
@@ -344,15 +349,82 @@ export class LeaveRequestsService {
     return email && smtpPass ? { email, smtpPass } : null;
   }
 
+  protected getNow(): Date {
+    return new Date();
+  }
+
+  private isShiftAlreadyStarted(leaveDate: string, type: TypeLeave): boolean {
+    const now = this.getNow();
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(now);
+
+    const year = parts.find((p) => p.type === 'year')?.value;
+    const month = parts.find((p) => p.type === 'month')?.value;
+    const day = parts.find((p) => p.type === 'day')?.value;
+    const hourStr = parts.find((p) => p.type === 'hour')?.value;
+    const minuteStr = parts.find((p) => p.type === 'minute')?.value;
+
+    if (!year || !month || !day || !hourStr || !minuteStr) {
+      return false;
+    }
+
+    const currentLocalDateStr = `${year}-${month}-${day}`;
+
+    // 1. Past days are always considered started/finished
+    if (leaveDate < currentLocalDateStr) {
+      return true;
+    }
+
+    // 2. Future days are never considered started yet
+    if (leaveDate > currentLocalDateStr) {
+      return false;
+    }
+
+    // 3. Today: check specific shift start times
+    const hour = parseInt(hourStr, 10);
+    const minute = parseInt(minuteStr, 10);
+    const currentMinutes = hour * 60 + minute;
+
+    const morningShiftStart = 8 * 60 + 30; // 8:30 AM = 510
+    const afternoonShiftStart = 13 * 60 + 30; // 1:30 PM = 810
+
+    if (type === TypeLeave.MORNING) {
+      return currentMinutes >= morningShiftStart;
+    }
+    if (type === TypeLeave.AFTERNOON) {
+      return currentMinutes >= afternoonShiftStart;
+    }
+    if (type === TypeLeave.FULL) {
+      return currentMinutes >= morningShiftStart;
+    }
+
+    return false;
+  }
+
   private isValidDate(value: string): boolean {
     const date = new Date(value);
     return !Number.isNaN(date.getTime());
   }
 
-  private isWeekendDate(leaveDate: string): boolean {
+  private isWeekendDate(leaveDate: string, type: TypeLeave = TypeLeave.FULL): boolean {
     const date = new Date(`${leaveDate}T00:00:00.000Z`);
     const day = date.getUTCDay();
-    return day === 0 || day === 6;
+    if (day === 0) {
+      return true;
+    }
+    if (day === 6) {
+
+      return type !== TypeLeave.MORNING;
+    }
+    return false;
   }
 
   private getTypeWeight(type: TypeLeave): number {
@@ -413,10 +485,10 @@ export class LeaveRequestsService {
       },
       resolvedByStaff: leaveRequest.resolvedByStaff
         ? {
-            id: leaveRequest.resolvedByStaff.id,
-            fullName: leaveRequest.resolvedByStaff.fullName,
-            email: leaveRequest.resolvedByStaff.email,
-          }
+          id: leaveRequest.resolvedByStaff.id,
+          fullName: leaveRequest.resolvedByStaff.fullName,
+          email: leaveRequest.resolvedByStaff.email,
+        }
         : undefined,
     };
   }
