@@ -181,7 +181,6 @@ export function LeaveDashboard() {
     fullName: string;
     email: string;
     password: string;
-    smtpPass: string;
     roleId?: number;
     leaveCredit?: number;
   }) {

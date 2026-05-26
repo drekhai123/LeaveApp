@@ -23,7 +23,6 @@ interface AdminCreateStaffModalProps {
     fullName: string;
     email: string;
     password: string;
-    smtpPass: string;
     roleId?: number;
     leaveCredit?: number;
   }) => Promise<void>;
@@ -51,10 +50,6 @@ export function AdminCreateStaffModal({
     leaveCredit: 12,
   });
 
-  const [hiddenMailCredential, setHiddenMailCredential] = useState(() =>
-    createHiddenMailCredential()
-  );
-
   const selectedRoleId = roleOptions.some((option) => option.value === form.roleId)
     ? form.roleId
     : defaultRoleId;
@@ -80,7 +75,6 @@ export function AdminCreateStaffModal({
         fullName: form.fullName.trim(),
         email: form.email.trim(),
         password: form.password,
-        smtpPass: hiddenMailCredential,
         roleId: Number(selectedRoleId),
         leaveCredit: Number(form.leaveCredit),
       });
@@ -91,7 +85,6 @@ export function AdminCreateStaffModal({
         roleId: defaultRoleId,
         leaveCredit: 12,
       });
-      setHiddenMailCredential(createHiddenMailCredential());
       toast.success("Tạo nhân viên thành công.");
       onClose();
     } catch (error) {
@@ -209,14 +202,6 @@ export function AdminCreateStaffModal({
             </div>
           </div>
 
-          {/* Hidden Mail credential */}
-          <input
-            name="smtpPass"
-            readOnly
-            type="hidden"
-            value={hiddenMailCredential}
-          />
-
           <div className="grid grid-cols-2 gap-4">
             {/* Role select */}
             <div className="grid gap-1.5">
@@ -307,7 +292,3 @@ function getRoleOptions(
   return all;
 }
 
-function createHiddenMailCredential(): string {
-  const randomId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
-  return `hidden-mail-${randomId}`;
-}

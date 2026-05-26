@@ -1,12 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
-import { MailMessage, MailSenderCredentials } from './mail.types';
+import { MailMessage } from './mail.types';
 
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private hasLoggedMissingPerStaffApiKey = false;
   private hasLoggedMissingAppResendKey = false;
   private hasLoggedMissingMailFrom = false;
   private readonly mailFrom: string | null;
@@ -18,9 +17,6 @@ export class MailService {
       this.configService.get<string>('RESEND_API_KEY')?.trim() || null;
   }
 
-  /**
-   * Uses `RESEND_API_KEY` and `MAIL_FROM` from environment (no per-staff keys).
-   */
   async sendWithAppResend(message: MailMessage): Promise<void> {
     const apiKey = this.resendApiKey;
     if (!apiKey) {
@@ -41,33 +37,6 @@ export class MailService {
         );
         this.hasLoggedMissingMailFrom = true;
       }
-      return;
-    }
-
-    await this.deliverViaResend(apiKey, from, message);
-  }
-
-  async send(
-    message: MailMessage,
-    sender: MailSenderCredentials,
-  ): Promise<void> {
-    const apiKey = sender.smtpPass?.trim();
-    if (!apiKey) {
-      if (!this.hasLoggedMissingPerStaffApiKey) {
-        this.logger.warn(
-          'Resend API key missing (smtp_pass); skipping outgoing email',
-        );
-        this.hasLoggedMissingPerStaffApiKey = true;
-      }
-      return;
-    }
-
-    const from =
-      sender.from?.trim() || this.mailFrom || sender.smtpUser?.trim();
-    if (!from) {
-      this.logger.warn(
-        'Sender from address missing; skipping outgoing email for this request',
-      );
       return;
     }
 

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import 'reflect-metadata';
 import { createMikroOrmConfig } from './src/database/mikro-orm.options';
 

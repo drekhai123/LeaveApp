@@ -14,7 +14,7 @@ describe('LeaveRequestsService', () => {
   let leaveRequestsService: LeaveRequestsService;
   let nextId: number;
   let staffsService: Pick<StaffsService, 'findByRoleName' | 'findEntityById'>;
-  let mailService: Pick<MailService, 'send' | 'sendWithAppResend'>;
+  let mailService: Pick<MailService, 'sendWithAppResend'>;
 
   beforeEach(() => {
     dbRequests = [];
@@ -97,7 +97,6 @@ describe('LeaveRequestsService', () => {
     };
 
     mailService = {
-      send: jest.fn().mockResolvedValue(undefined),
       sendWithAppResend: jest.fn().mockResolvedValue(undefined),
     };
 
@@ -142,7 +141,6 @@ describe('LeaveRequestsService', () => {
     );
     expect((mailService.sendWithAppResend as jest.Mock).mock.calls[0][0].to)
       .toHaveLength(2);
-    expect(mailService.send).not.toHaveBeenCalled();
   });
 
   it('creates half-day leave request and returns decimal totalDays', async () => {
@@ -273,7 +271,7 @@ describe('LeaveRequestsService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it("uses resolver's Resend credentials when manager approves a request", async () => {
+  it('uses app Resend key when manager approves a request', async () => {
     const created = await leaveRequestsService.create({
       leaveDate: '2026-05-07',
       reason: 'Personal work',
@@ -283,14 +281,10 @@ describe('LeaveRequestsService', () => {
 
     await leaveRequestsService.approve(created.requests[0].id, {}, 3);
 
-    expect(mailService.send).toHaveBeenLastCalledWith(
+    expect(mailService.sendWithAppResend).toHaveBeenLastCalledWith(
       expect.objectContaining({
         to: '1@company.local',
         subject: 'Leave request APPROVED',
-      }),
-      expect.objectContaining({
-        smtpUser: '3@company.local',
-        smtpPass: 'smtp-pass-3',
       }),
     );
   });
@@ -420,7 +414,6 @@ function createMockStaff(
   staff.id = id;
   staff.fullName = fullName;
   staff.email = `${id}@company.local`;
-  staff.smtpPass = `smtp-pass-${id}`;
   staff.passwordHash = 'hashed-password';
   staff.role = role;
   staff.leaveCredit = 12;

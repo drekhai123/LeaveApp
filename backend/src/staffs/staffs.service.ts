@@ -106,7 +106,6 @@ export class StaffsService {
     creator: AuthenticatedStaff,
   ): Promise<StaffResponseDto> {
     await this.ensureEmailUnique(dto.email);
-    await this.ensureSmtpPassUnique(dto.smtpPass);
     const role = await this.resolveRole(dto.roleId);
     await this.assertCanCreateRole(creator.role, role.name);
 
@@ -116,7 +115,6 @@ export class StaffsService {
       fullName: dto.fullName.trim(),
       email: dto.email.toLowerCase(),
       passwordHash: await this.hashPassword(dto.password),
-      smtpPass: dto.smtpPass.trim(),
       role,
       leaveCredit: dto.leaveCredit ?? 12,
       createdBy: creatorEntity,
@@ -143,11 +141,6 @@ export class StaffsService {
 
     if (dto.password) {
       staff.passwordHash = await this.hashPassword(dto.password);
-    }
-
-    if (dto.smtpPass && dto.smtpPass !== staff.smtpPass) {
-      await this.ensureSmtpPassUnique(dto.smtpPass);
-      staff.smtpPass = dto.smtpPass.trim();
     }
 
     if (typeof dto.leaveCredit === 'number') {
@@ -230,16 +223,6 @@ export class StaffsService {
 
     if (existingStaff) {
       throw new ConflictException('Email already exists');
-    }
-  }
-
-  private async ensureSmtpPassUnique(smtpPass: string): Promise<void> {
-    const existingStaff = await this.staffRepository.findOne({
-      smtpPass: smtpPass.trim(),
-    });
-
-    if (existingStaff) {
-      throw new ConflictException('SMTP password already exists');
     }
   }
 

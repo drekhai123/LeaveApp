@@ -23,11 +23,6 @@ export class CreateStaffDto {
   @MinLength(8)
   password!: string;
 
-  @ApiProperty({ example: 'smtp-app-password-1234' })
-  @IsString()
-  @MinLength(8)
-  smtpPass!: string;
-
   @ApiPropertyOptional({
     example: 1,
     description: 'Role id. Defaults to STAFF.',

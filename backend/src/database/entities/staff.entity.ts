@@ -23,9 +23,6 @@ export class Staff {
   @Property({ length: 255, hidden: true })
   passwordHash!: string;
 
-  @Property({ length: 255, unique: true, hidden: true })
-  smtpPass!: string;
-
   @ManyToOne(() => Role, {
     joinColumn: 'role_id',
     inversedBy: (role: Role) => role.staffs,

@@ -178,32 +178,11 @@ export class LeaveRequestsService {
       `Processed leaveRequestId=${leaveRequest.id} status=${status} resolverStaffId=${resolverStaff.id} staffId=${leaveRequest.staff.id}`,
     );
 
-    if (resolverStaff.role.name === 'HEAD') {
-      await this.mailService.sendWithAppResend({
-        to: leaveRequest.staff.email,
-        subject: `Leave request ${status}`,
-        text: `Your leave request ${leaveRequest.id} was ${status}.`,
-      });
-    } else {
-      const mailSender = this.resolveEmployeeOutcomeMailSender(resolverStaff);
-      if (mailSender) {
-        await this.mailService.send(
-          {
-            to: leaveRequest.staff.email,
-            subject: `Leave request ${status}`,
-            text: `Your leave request ${leaveRequest.id} was ${status}.`,
-          },
-          {
-            smtpUser: mailSender.email,
-            smtpPass: mailSender.smtpPass,
-          },
-        );
-      } else {
-        this.logger.warn(
-          `No Resend credentials for employee notification (leaveRequestId=${leaveRequest.id}, resolverStaffId=${resolverStaff.id}); skipping mail`,
-        );
-      }
-    }
+    await this.mailService.sendWithAppResend({
+      to: leaveRequest.staff.email,
+      subject: `Leave request ${status}`,
+      text: `Your leave request ${leaveRequest.id} was ${status}.`,
+    });
 
     return this.toResponse(leaveRequest);
   }
@@ -338,15 +317,6 @@ export class LeaveRequestsService {
       ...mailMessage,
       to,
     });
-  }
-
-  /** MANAGER/ADMIN outcome mail uses the resolver's Resend key (HEAD uses .env). */
-  private resolveEmployeeOutcomeMailSender(
-    resolverStaff: Staff,
-  ): { email: string; smtpPass: string } | null {
-    const email = resolverStaff.email?.trim();
-    const smtpPass = resolverStaff.smtpPass?.trim();
-    return email && smtpPass ? { email, smtpPass } : null;
   }
 
   protected getNow(): Date {

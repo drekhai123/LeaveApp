@@ -371,22 +371,6 @@
           "enumItems": [],
           "mappedType": "string"
         },
-        "smtp_pass": {
-          "name": "smtp_pass",
-          "type": "varchar(255)",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "unique": true,
-          "length": 255,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "string"
-        },
         "password_hash": {
           "name": "password_hash",
           "type": "varchar(255)",
@@ -522,15 +506,6 @@
           "unique": false,
           "primary": false,
           "constraint": false
-        },
-        {
-          "columnNames": [
-            "smtp_pass"
-          ],
-          "keyName": "staffs_smtp_pass_unique",
-          "unique": true,
-          "primary": false,
-          "constraint": true
         }
       ],
       "checks": [],

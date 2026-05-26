@@ -59,7 +59,6 @@ export function AdminWorkspace({
     fullName: string;
     email: string;
     password: string;
-    smtpPass: string;
     roleId?: number;
     leaveCredit?: number;
   }) => Promise<void>;
